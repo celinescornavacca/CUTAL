@@ -1,0 +1,5 @@
+4 5 
+Seq1 TGGGA
+Seq2 TACGA
+Seq3 AAGGT
+Seq4 AGGGT
