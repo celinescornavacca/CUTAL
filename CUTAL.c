@@ -1331,6 +1331,271 @@ unsigned int precomputed16_bitcount (unsigned int n)
 }
 
 
+
+
+
+static float getHomoplasyRatio(int i, int j, int homoplasyValue) 
+{
+  assert  (i <= j);  // program breaks if called with i greater than j
+  return ((float) homoplasyValue) / ((float)(j-i+1));
+
+}
+
+
+
+
+
+
+static int getOptHomoplasyOfContiguousBlock(tree *tr, analdef *adef, int startCharacter, int endCharacter)
+{
+
+  assert  (startCharacter <= endCharacter); 
+
+  int parsimonyScore = makeParsimonyTreeFastDNA(tr, adef, startCharacter, endCharacter);
+  // TODO: makeParsimonyTreeFastDNA changes the tree, right?
+  // Which means that after the first time we call makeParsimonyTreeFastDNA, subsequent calls won't be starting with a 'clean' tree.
+  // This might be useful later on, but to begin with we'd probably like to use a fresh tree (with the same ->rdata )
+  
+  int minPossibleParsimonyScore = 3*(endCharacter - startCharacter + 1);
+  // TODO calculate actual minimum homoplasy score  
+  //(the above calculation assumes that A,C,G,T appear in each character, and so the min parsimony score of each character is 3)
+
+  return  parsimonyScore - minPossibleParsimonyScore;
+}
+
+
+
+static void getOptBlockPartition(tree *tr, analdef *adef, int desiredBlockCount) 
+{
+
+
+
+  int numsp = tr->rdta->numsp;  // number of species
+  int sites = tr->rdta->sites;  // number of sites
+  //int desiredBlockCount;
+
+  int BP_blockScoreArray[sites][sites];		// BP_blockScoreArray[i][j]  sores the optimum homoplasy score of the block on characters i to j (inclusive)
+
+  int impossiblyHighHomoplasyScore = numsp*sites;
+
+  float BP_DPHomoplasyRatioLookupTable[desiredBlockCount][sites][sites]; // Entry BP_DPHomoplasyRatioLookupTable[b][i][j] for i<= j is the minimum value of 
+// the homoplasy ratio of any block partition P of character 0 to j, 
+// for which the last block is from i to j and there are b+1 blocks in total;
+// where "homoplasy ratio of P" means the maximum homoplasy ratio of 
+// any block in P. A value of Float.POSITIVE_INFINITY means there is no solution 
+// for this set of values (e.g. if i > j)
+
+  int BP_backtrackTable[desiredBlockCount][sites][sites];
+// Used to reconstruct an optimal solution.
+// BP_backtrackTable[b][i][j]  is the value i' such that an 
+// optimal block partition with b+1 blocks and last block [i,j]
+// has [i',j-1] as its second-to-last block.
+
+
+
+// TODO  do we have to store lengths of arrays and things and make memory room for them?? Probably!
+
+
+
+  printf("populating BP_blockScoreArray\n");
+  // Populate BP_blockScoreArray, which stores the optimum homoplasy score every contiguous block of characters
+  // Todo there is stuff to do with declaring data structures and assigning memory space and stuff like that that I am super not doing at the moment.
+  for (int i = 0; i < sites; i++)   
+    {
+      //int BP_blockScore1dArray[sites];	// BP_blockScore1dArray[j] stores the optimum homoplasy score of the block on characters i to j
+
+
+      for (int j = 0; j < sites; j++) 
+        {
+          if (i > j)
+
+            BP_blockScoreArray[i][j] = impossiblyHighHomoplasyScore;
+            // BP_blockScore1dArray[j] = impossiblyHighHomoplasyScore;
+          else
+
+            BP_blockScoreArray[i][j] = getOptHomoplasyOfContiguousBlock(tr, adef, i, j);
+            // BP_blockScore1dArray[j] = getOptHomoplasyOfContiguousBlock(fullAlignment, i, j);
+        }  
+
+    } 
+
+
+
+  printf("populating BP_DPHomoplasyRatioLookupTable\n");
+  for (int i = 0; i < sites; i++)   
+    {
+
+      for (int j = 0; j < sites; j++)
+        {
+          for (int b = 0; b < desiredBlockCount; b++)
+            {
+              float val = INFINITY;
+              int bestPrevI = -1;
+
+              if (b == 0 && i > 0)
+                {
+                  val = INFINITY;		// if first block, i should be 0
+                }
+              if (b > 0 && i == 0)
+                {
+                  val = INFINITY;		// if not first block, i should be bigger than 0
+                }
+
+              if (b == 0 && i == 0)			// if first block, take homoplasy ratio of that block.
+                {
+                   val =  getHomoplasyRatio(i,j, BP_blockScoreArray[i][j]);	
+                }
+              if (b > 0 && i > 0)
+                {
+                  if (i > j)			// i should be at most j.
+                    {
+                      val = INFINITY;	
+                    } 
+                  else 
+                    {
+
+                      //find the minimum possible homoplasy score for any b-1 block partition up to this point
+                      float currentMinimum = INFINITY;
+                      int lastj = i-1;
+                      for(int lasti = 0; lasti <= lastj; lasti++)
+                        {
+                          float tempVal = BP_DPHomoplasyRatioLookupTable[b-1][lasti][lastj];
+                          if (tempVal < currentMinimum)
+                            {
+                              currentMinimum = tempVal;
+                              // update the bestPrevI value because we have a new best block partition
+                              bestPrevI = lasti;
+                            }
+                        }
+                      // currentMinimum is now the optimum homoplasy ratio for any block partition of 0 to i-1
+                      // using b-1 blocks
+                      float valCurrentBlock =  getHomoplasyRatio(i,j, BP_blockScoreArray[i][j]);
+                      // If the current block has worse homoplasy ratio than what we could 
+                      // get up to this point, that ratio is now the best we can do for a block partition of this type.
+                      if (currentMinimum < valCurrentBlock)
+                        {
+                          val = valCurrentBlock;
+                        } 
+                      // Otherwise, the best we could do up to this point i still the best we can do
+                      else 
+                        {
+                          val = currentMinimum;
+                        }
+
+
+                      // populate the lookup table with the calculated value
+                      BP_DPHomoplasyRatioLookupTable[b][i][j] = val;
+                      // also populate the backtrack table so we can reconstruct a solution later
+                      BP_backtrackTable[b][i][j] = bestPrevI;
+                    }
+                }
+            } 
+        }
+    }  
+
+  // Okay, now we have the DP homoplasy lookup table and also the backtrack table. it remains to just find the best block partition using these tabes!
+
+
+  printf("determining optimal block partition.\n");
+
+  // Given DPHomoplasyRatioLookupTable, it remains to find the value corresponding a block partition of the full set of characters (i.e. j = characterCount-1) that has minimum homoplasy ratio.
+  float currentOptimum = INFINITY;
+  // Find the minimum value over all entries DPHomoplasyRatioLookupTable[b][i][j] with j = characterCount-1.
+  // (Note that b may be smaller than desiredBlockCount-1, if splitting into fewer than desiredBlockcount blocks 
+  // actually gives better homoplasy ratio.
+  int optFinalI = -1;
+  int optFinalB = -1;
+  for(int b = 0; b < desiredBlockCount; b++)
+    {
+      for(int i = 0; i < sites; i++)
+        {
+          float tempVal = BP_DPHomoplasyRatioLookupTable[b][i][sites-1];
+          if (tempVal < currentOptimum)
+            {
+              currentOptimum = tempVal;
+              optFinalI = i;
+              optFinalB = b;
+            }
+        }
+    }
+  // Store the minimum value found
+  float BP_optHomoplasyRatio = currentOptimum;
+
+  // Now use backtracking to reconstruct the details of an optimal solution
+
+  int BP_optBlockStarts[optFinalB + 1]; 	// List of the first elements of each block in an optimal block partition
+  int BP_optBlockEnds[optFinalB + 1];	// List of the last elements of each block in an optimal block partition
+  //int BP_optTrees[optFinalB + 1];	// List of (the indices of?????) optimal trees for each block in an optimal block partition
+
+  // The first block we store information on is actually the last block, which we know ends with the last character.
+  int currentBlockStart = optFinalI;
+  int currentBlockEnd = sites - 1;
+  int currentBlockCount = optFinalB;
+
+
+  // append the details of the current block to their respective lists.
+  BP_optBlockStarts[optFinalB] = currentBlockStart;
+  BP_optBlockEnds[optFinalB] = currentBlockEnd;
+ // BP_optTrees[optFinalB] = BP_optTreePerBlock[currentBlockStart][currentBlockEnd];
+
+
+
+  // Work backwards, finding the previous block and recording its details, until we reach the first block
+  for (int b = optFinalB; b > 0; b--)   // TODO: absolutely please check if you've got this right.
+    {
+      int previousBlockStart = BP_backtrackTable[currentBlockCount][currentBlockStart][currentBlockEnd];
+      int previousBlockEnd = currentBlockStart - 1;
+      int previousBlockCount= currentBlockCount - 1;
+
+      // previous block becomes the new current block
+      currentBlockStart = previousBlockStart;
+      currentBlockEnd = previousBlockEnd;
+      currentBlockCount = previousBlockCount;
+
+      // append the details of the current block to their respective lists.
+      BP_optBlockStarts[b-1] = currentBlockStart;
+      BP_optBlockEnds[b-1] = currentBlockEnd;
+      //BP_optTrees.add(BP_optTreePerBlock[currentBlockStart][currentBlockEnd]);
+
+    }
+
+
+
+  // Tada! We have found the optimal block partition. Hopefully. Time to report it!
+
+  printf("Optimal block partition: ");
+
+
+  for (int h = 0; h <= optFinalB; h++)
+    {
+
+      int tempBlockStart = BP_optBlockStarts[h];
+      int tempBlockEnd = BP_optBlockEnds[h];
+      printf("[");
+      printf("%d", tempBlockStart); 
+      printf("---");
+      printf("%d", tempBlockEnd);
+      printf("]");
+      if (h > 0)
+        {
+          printf(", ");
+        } 
+      else 
+        {
+          printf("\n");
+        }
+    }
+
+
+  printf("Maximum homoplasy ratio: %f\n", BP_optHomoplasyRatio);
+
+
+  // TODO: report back more details, like the homoplasy score / optimal tree for each block?
+
+}
+
+
+
 int main (int argc, char *argv[])
 {
   rawdata      *rdta;
@@ -1369,10 +1634,13 @@ int main (int argc, char *argv[])
   //printBothOpen("Alignment has %d sites and %d taxa\n\n", tr->cdta->endsite, tr->mxtips);
   //printBothOpen("%d randomized stepwise addition order parsimony trees with a couple of SPR moves will be computed\n\n", adef->numberOfTrees);
 
+  int desiredBlockCount = 3; 	// TODO: make this be decidable by user
+  getOptBlockPartition(tr, adef, desiredBlockCount);
 
-  int minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, rdta->sites); //rdta->sites);
 
-  printf("Best parsimony score %u\n", minParsimonyScoreOverRuns); 
+  //int minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, rdta->sites); //rdta->sites);
+
+  //printf("Best parsimony score %u\n", minParsimonyScoreOverRuns); 
 
 
   return 0;
