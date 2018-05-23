@@ -1397,31 +1397,27 @@ static void getOptBlockPartition(tree *tr, analdef *adef, int desiredBlockCount)
 
 
 
-  printf("populating BP_blockScoreArray\n");
+  //printf("populating BP_blockScoreArray\n");
   // Populate BP_blockScoreArray, which stores the optimum homoplasy score every contiguous block of characters
   // Todo there is stuff to do with declaring data structures and assigning memory space and stuff like that that I am super not doing at the moment.
   for (int i = 0; i < sites; i++)   
     {
-      //int BP_blockScore1dArray[sites];	// BP_blockScore1dArray[j] stores the optimum homoplasy score of the block on characters i to j
-
 
       for (int j = 0; j < sites; j++) 
         {
           if (i > j)
 
             BP_blockScoreArray[i][j] = impossiblyHighHomoplasyScore;
-            // BP_blockScore1dArray[j] = impossiblyHighHomoplasyScore;
           else
 
             BP_blockScoreArray[i][j] = getOptHomoplasyOfContiguousBlock(tr, adef, i, j);
-            // BP_blockScore1dArray[j] = getOptHomoplasyOfContiguousBlock(fullAlignment, i, j);
         }  
 
     } 
 
 
 
-  printf("populating BP_DPHomoplasyRatioLookupTable\n");
+  //printf("populating BP_DPHomoplasyRatioLookupTable\n");
   for (int i = 0; i < sites; i++)   
     {
 
@@ -1496,7 +1492,7 @@ static void getOptBlockPartition(tree *tr, analdef *adef, int desiredBlockCount)
   // Okay, now we have the DP homoplasy lookup table and also the backtrack table. it remains to just find the best block partition using these tabes!
 
 
-  printf("determining optimal block partition.\n");
+ // printf("determining optimal block partition.\n");
 
   // Given DPHomoplasyRatioLookupTable, it remains to find the value corresponding a block partition of the full set of characters (i.e. j = characterCount-1) that has minimum homoplasy ratio.
   float currentOptimum = INFINITY;
@@ -1576,7 +1572,7 @@ static void getOptBlockPartition(tree *tr, analdef *adef, int desiredBlockCount)
       printf("---");
       printf("%d", tempBlockEnd);
       printf("]");
-      if (h > 0)
+      if (h < optFinalB)
         {
           printf(", ");
         } 
