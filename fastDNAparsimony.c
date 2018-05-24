@@ -110,6 +110,7 @@ const unsigned int mask32[32] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 20
 
 static void *malloc_aligned(size_t size, size_t align) 
 {
+
   void *ptr = (void *)NULL;  
   int res;
   
@@ -126,7 +127,13 @@ static void *malloc_aligned(size_t size, size_t align)
    assert(0);
 
 #else
+  // TODO note fromMark:
+  // As best as I can tell, the following line causes a memory corruption issue when both of the following conditions hold:
+  // 1. The number of sites is equl to 2 mod 4; and
+  // 2. We are are calling makeParsimonyTreeFastDNA on not the full set of sites.
+  //printf("doign posix_memalign\n");
   res = posix_memalign( &ptr, align, size );
+  //printf("done posix_memalign\n");
 
   if(res != 0) 
     assert(0);
@@ -134,6 +141,7 @@ static void *malloc_aligned(size_t size, size_t align)
    
   return ptr;
 }
+
 
 
 /********************************DNA FUNCTIONS *****************************************************************/
@@ -1003,7 +1011,6 @@ static parsimonyNumber *compressDNA(tree *tr, int *informative)
   if(entries % PCF != 0)
     compressedEntries++;
   
-  
   /* printf("compression %d -> %d\n", entries, compressedEntries); */
 
 #if (defined(__SIM_SSE3) || defined(__AVX))
@@ -1019,9 +1026,11 @@ static parsimonyNumber *compressDNA(tree *tr, int *informative)
 
   compressedScratch = (parsimonyNumber *)malloc_aligned((size_t)compressedEntriesPadded * 8 * (size_t)tr->mxtips * sizeof(parsimonyNumber), BYTE_ALIGNMENT);
      
+
   for(i = 0; i < compressedEntriesPadded * 8 * tr->mxtips; i++)      
     compressedScratch[i] = 0;    
       
+
 
   for(i = 0; i < (size_t)tr->mxtips; i++)
     {
@@ -1103,6 +1112,7 @@ static parsimonyNumber *compressDNA(tree *tr, int *informative)
 	}	 	
     }
     
+
   tr->parsimonyState_A = (parsimonyNumber**)malloc_aligned(sizeof(parsimonyNumber*) * 2 * (size_t)tr->mxtips, BYTE_ALIGNMENT);
   tr->parsimonyState_C = (parsimonyNumber**)malloc_aligned(sizeof(parsimonyNumber*) * 2 * (size_t)tr->mxtips, BYTE_ALIGNMENT);
   tr->parsimonyState_G = (parsimonyNumber**)malloc_aligned(sizeof(parsimonyNumber*) * 2 * (size_t)tr->mxtips, BYTE_ALIGNMENT);
@@ -1328,12 +1338,13 @@ int makeParsimonyTreeFastDNA(tree *tr, analdef *adef, int startSite, int endSite
   for(int i = 0; i <= startSite-1; i++){
   	informative[i]=0;
   }      
-	  
+
   for(int i = endSite+1; i <= tr->rdta->sites; i++){
     	informative[i]=0;
-  } 	     
+  } 	
 
   parsimonySpace = compressDNA(tr, informative); //TODO: Could we avoid to create compressDNA from scratch each time  
+
 
   free(informative); 
 
