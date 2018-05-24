@@ -252,6 +252,7 @@ typedef  struct {
   long           parsimonySeed;
   boolean        restart;
   int            numberOfTrees;
+  int 			 numberOfBlocks;
 } analdef;
 
 
