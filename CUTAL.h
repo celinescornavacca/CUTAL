@@ -1,11 +1,11 @@
-/*  CUTAL (version 0.1) a program for cutting alignement into non-recombinant blocks under 
- *  a parsimony framework 
+/*  CUTAL (version 0.1) a program for cutting alignement into non-recombinant blocks under
+ *  a parsimony framework
  *  Copyright May 2018 by Celine Scornavacca and Mark Jones
- * 
- *  The program is heavily based on Parsimonator-1.0.2 by Alexandros Stamatakis, which was partially 
+ *
+ *  The program is heavily based on Parsimonator-1.0.2 by Alexandros Stamatakis, which was partially
  *  derived from fastDNAml, a program for estimation of phylogenetic trees from sequences by Gary J. Olsen
- *  
- *  and 
+ *
+ *  and
  *
  *  programs of the PHYLIP package by Joe Felsenstein.
  *
@@ -18,9 +18,9 @@
  *  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
  *  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  *  for more details.
- * 
  *
- *  For any other enquiries send an email to celine.scornavacca@umontpellier.fr and 
+ *
+ *  For any other enquiries send an email to celine.scornavacca@umontpellier.fr and
  *  markelliotlloyd@gmail.com
  *
  */
@@ -90,10 +90,10 @@ typedef unsigned int parsimonyNumber;
 
 typedef struct ratec
 {
-  double accumulatedSiteLikelihood;
-  double rate;
+        double accumulatedSiteLikelihood;
+        double rate;
 }
-  rateCategorize;
+rateCategorize;
 
 
 
@@ -114,13 +114,13 @@ struct noderec;
 
 typedef  struct noderec
 {
-  
-  struct noderec  *next;
-  struct noderec  *back;
-  int              number;
-  char             x;
+
+        struct noderec  *next;
+        struct noderec  *back;
+        int number;
+        char x;
 }
-  node, *nodeptr;
+node, *nodeptr;
 
 
 
@@ -128,21 +128,21 @@ typedef  struct noderec
 
 typedef  struct
 {
-  int              numsp;
-  int              sites;
-  unsigned char             **y;
-  unsigned char             *y0;
-  unsigned char             *yBUF;
-  int              *wgt;
+        int numsp;
+        int sites;
+        unsigned char             **y;
+        unsigned char             *y0;
+        unsigned char             *yBUF;
+        int              *wgt;
 } rawdata;
 
 typedef  struct {
-  int             *alias;       /* site representing a pattern */
-  int             *aliaswgt;    /* weight by pattern */
-  int             *rateCategory;
-  int              endsite;     /* # of sequence patterns */
-  double          *patrat;      /* rates per pattern */
-  double          *patratStored; 
+        int             *alias; /* site representing a pattern */
+        int             *aliaswgt;/* weight by pattern */
+        int             *rateCategory;
+        int endsite;            /* # of sequence patterns */
+        double          *patrat;/* rates per pattern */
+        double          *patratStored;
 } cruncheddata;
 
 
@@ -152,32 +152,32 @@ typedef  struct {
 
 
 
-typedef struct 
+typedef struct
 {
-  int left;
-  int right;
-  double likelihood;
+        int left;
+        int right;
+        double likelihood;
 } lhEntry;
 
 
-typedef struct 
+typedef struct
 {
-  int count;
-  int size;
-  lhEntry *entries;
+        int count;
+        int size;
+        lhEntry *entries;
 } lhList;
 
 
-typedef struct List_{
-  void *value; 			
-  struct List_ *next; 
+typedef struct List_ {
+        void *value;
+        struct List_ *next;
 } List;
 
 struct stringEnt
 {
-  int nodeNumber;
-  char *word;
-  struct stringEnt *next;
+        int nodeNumber;
+        char *word;
+        struct stringEnt *next;
 };
 
 typedef struct stringEnt stringEntry;
@@ -186,51 +186,51 @@ typedef unsigned int hashNumberType;
 
 typedef struct
 {
-  hashNumberType tableSize;
-  stringEntry **table;
+        hashNumberType tableSize;
+        stringEntry **table;
 }
-  stringHashtable;
+stringHashtable;
 
 typedef  struct  {
- 
- 
 
-  parsimonyNumber **parsimonyState_A;
-  parsimonyNumber **parsimonyState_C;
-  parsimonyNumber **parsimonyState_G;
-  parsimonyNumber **parsimonyState_T;
-  unsigned int *parsimonyScore; 
-  int *ti;
-  unsigned int compressedWidth;
 
-  unsigned char             **yVector;
-  
 
- 
- 
-  stringHashtable  *nameHash;
+        parsimonyNumber **parsimonyState_A;
+        parsimonyNumber **parsimonyState_C;
+        parsimonyNumber **parsimonyState_G;
+        parsimonyNumber **parsimonyState_T;
+        unsigned int *parsimonyScore;
+        int *ti;
+        unsigned int compressedWidth;
 
- 
-  node           **nodep;
-  node            *start;
-  int              mxtips;
-   
-  int              ntips;
-  int              nextnode;
-  
- 
-  rawdata         *rdta;
-  //cruncheddata    *cdta; //not needed anymore 
+        unsigned char             **yVector;
 
-  char **nameList;
-  char *tree_string;
-  int *nodesInTree;
 
-  int treeStringLength;
-  unsigned int bestParsimony;
-  
-  nodeptr removeNode;
-  nodeptr insertNode;
+
+
+        stringHashtable  *nameHash;
+
+
+        node           **nodep;
+        node            *start;
+        int mxtips;
+
+        int ntips;
+        int nextnode;
+
+
+        rawdata         *rdta;
+        //cruncheddata    *cdta; //not needed anymore
+
+        char **nameList;
+        char *tree_string;
+        int *nodesInTree;
+
+        int treeStringLength;
+        unsigned int bestParsimony;
+
+        nodeptr removeNode;
+        nodeptr insertNode;
 
 } tree;
 
@@ -249,10 +249,10 @@ typedef  struct  {
 typedef  struct {
 
 
-  long           parsimonySeed;
-  boolean        restart;
-  int            numberOfTrees;
-  int 			 numberOfBlocks;
+        long parsimonySeed;
+        boolean restart;
+        int numberOfTrees;
+        int numberOfBlocks;
 } analdef;
 
 
