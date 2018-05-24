@@ -1727,14 +1727,14 @@ int main (int argc, char *argv[])
 
 
   //int minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, rdta->sites); //rdta->sites);
-  printf ("doing a test\n");
-  int minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, rdta->sites - 1); //rdta->sites);
-  printf ("test done\n");
+  //printf ("doing a test\n");
+  //int minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, rdta->sites - 1); //rdta->sites);
+  //printf ("test done\n");
   //minParsimonyScoreOverRuns = makeParsimonyTreeFastDNA(tr, adef, 0, 0); //rdta->sites);
 
 
   int desiredBlockCount = 3; 	// TODO: make this be decidable by user
- // getOptBlockPartition(tr, adef, desiredBlockCount);
+  getOptBlockPartition(tr, adef, desiredBlockCount);
 
 
   //printf("Best parsimony score %u\n", minParsimonyScoreOverRuns); 
