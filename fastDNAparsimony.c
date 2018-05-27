@@ -837,7 +837,9 @@ static void restoreTreeRearrangeParsimony(tree *tr)
   restoreTreeParsimony(tr, tr->removeNode, tr->insertNode);  
 }
 
-static boolean isInformative(tree *tr, int site)
+
+// TODO: made this non static so we could call it from eleswhere. This is probably bad practice right.
+boolean isInformative(tree *tr, int site)
 {
   int
     informativeCounter = 0,
@@ -901,6 +903,71 @@ static boolean isInformative(tree *tr, int site)
   return FALSE;	     
 }
 
+// Return the minimal parsimony score of any tree on this site.
+// Substracting this number from the parsimony score of a tree on this site gives the homoplasy score of that tree on this site
+// Only works for DNA currently
+int getMinParsimonyScoreForSite(tree *tr, int site)
+  {
+    // Store the current minimum number of states needed to cover all entries in this site, which currently is 4.
+    int i, j;
+    int minStateCover = 4;
+    int tempStateCount;
+    int localNucleotide;
+    int overlap;
+    boolean tempStateCoverWorks;
+
+    // The binary expression of each number for 1 to 15 expresses a subset of {A,C,G,T}, with the rightmost bit corresponding to A, then C, and so on. 
+    // Thus for example, 5 = 0101 corresponds to the set containing  the states G and A.
+    // For each such set, we will determine whether that set of states satisfies the given site.
+    for(i = 1; i <= 15; i++)
+      {
+        //  Figure out the number of states in the set this number corresponds to
+        tempStateCount = 0;
+        if (i & 1)           // check if this set contains A
+          {
+            tempStateCount++;
+          }
+        if (i & 2)           // check if this set contains C
+          {
+            tempStateCount++;
+          }
+        if (i & 4)           // check if this set contains G
+          {
+            tempStateCount++;
+          }
+        if (i & 8)           // check if this set contains T
+          {
+            tempStateCount++;
+          }
+
+        // if this set has fewer states than the current minimum...
+        if (tempStateCount < minStateCover)
+          {
+            // ...then figure out if this set contains a state satisfying each nucleic acid code in the site.
+            tempStateCoverWorks = TRUE;
+            for(j=1; j <= tr->mxtips; j++)
+              {	   
+                localNucleotide = tr->yVector[j][site];	 
+                // find which states are in both the set corresponding to i and the the set corresponding to this code.
+                overlap = localNucleotide & i;
+                // if there is no overlap, this set does not cover all nucleic acid code  in the site
+                if (overlap == 0)
+                {
+                   tempStateCoverWorks = FALSE;
+                }
+              }
+              // if this set is a cover for all codes in the site, then we have a new minimum, hooray!
+              if (tempStateCoverWorks)
+                {
+                  minStateCover = tempStateCount;
+                }
+          }
+      }
+     
+    // finally, now that we know how many states are needed to satisfy this site,
+    // the minimum parsimony score (i.e. minimum number of state changes) is equal to that number minus 1
+    return minStateCover - 1;
+  }
 
 static void determineUninformativeSites(tree *tr, int *informative)
 {

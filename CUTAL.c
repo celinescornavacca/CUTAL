@@ -1428,19 +1428,30 @@ static float getHomoplasyRatio(int i, int j, int homoplasyValue)
 static int getOptHomoplasyOfContiguousBlock(tree *tr, analdef *adef, int startCharacter, int endCharacter)
 {
 
+
+
+  //printf("Calculating [%d -- %d ]:", startCharacter, endCharacter);
   assert  (startCharacter <= endCharacter); 
 
   int parsimonyScore = makeParsimonyTreeFastDNA(tr, adef, startCharacter, endCharacter);
-  // TODO: makeParsimonyTreeFastDNA changes the tree, right?
-  // Which means that after the first time we call makeParsimonyTreeFastDNA, subsequent calls won't be starting with a 'clean' tree.
-  // This might be useful later on, but to begin with we'd probably like to use a fresh tree (with the same ->rdata )
   
-  //int minPossibleParsimonyScore = 3*(endCharacter - startCharacter + 1);
-  // TODO calculate actual minimum homoplasy score  
-  //(the above calculation assumes that A,C,G,T appear in each character, and so the min parsimony score of each character is 3)
-  int minPossibleParsimonyScore = 0;   // simplest way to ensure no negative homoplasy ratios while the min parsimony score is unknown
+  // Calculate the lower bound on parsimony, based on how many states are needed to cover each site.
+  int parsimonyScoreLowerBound = 0;  
+  int i;
+  for (i = startCharacter; i <= endCharacter; i++)
+    {
+      // Parsimonator treats characters in which only one state appears more than once as 'uninformative', and so ignores them.
+      // Uninformative characters can still have a non-0 minimum parsimony score, and so can lead to an innacurate homoplasy score
+      // (e.g. if site i is uninformative with 3 states (one A, one C, and the rest T's), Parsimonator returns a score of 0 for site i despite the fact that the minimum parsimony score is technically 2. Thus we would get a homoplasy score of -2.)
+      // To avoid this problem, we too must ignore uninformative sites when calculating the parsimony score lower bound.
+      if (isInformative(tr, i))
+        {
+          parsimonyScoreLowerBound = parsimonyScoreLowerBound + tr->minParsimonyPerSite[i];
+        }
+    }
 
-  int returnVal = parsimonyScore - minPossibleParsimonyScore;
+  int returnVal = parsimonyScore - parsimonyScoreLowerBound;
+  //printf("%d - %d = %d\n", parsimonyScore, parsimonyScoreLowerBound, returnVal);
   return  returnVal;
   //return 0;
 }
@@ -1449,6 +1460,7 @@ static int getOptHomoplasyOfContiguousBlock(tree *tr, analdef *adef, int startCh
 
 static void getOptBlockPartition(tree *tr, analdef *adef) 
 {
+
 
   int debugOutput = 0;
 
@@ -1459,6 +1471,8 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
   // BP_blockScoreArray[i][j]  stores the optimum homoplasy score of the block on characters i to j (inclusive)
   //int **BP_blockScoreArray  = get2dIntArray(sites, sites);
+
+  int BP_minParsimonyScorePerSiteArray [sites];  // BP_minParsimonyScorePerSiteArray[i] stores the theoretical minimum parsimony score of  any character on site i.  (i.e. the minimum number of states used in site i, minus 1)
 
   int BP_blockScoreArray[sites][sites];//  = get2dIntArray(sites, sites);
 
@@ -1483,9 +1497,21 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
    int BP_backtrackTable[desiredBlockCount][sites][sites];
 
+
+
+
+  //printf("populating BP_minParsimonyScorePerSiteArray\n");
+  // Populate BP_minParsimonyScorePerSiteArray, which stores the theoretical minimum parsimony score for each individal site
+  for (int i = 0; i < sites; i++)
+    {
+      BP_minParsimonyScorePerSiteArray[i] = getMinParsimonyScoreForSite(tr, i);
+    }
+  // Add min Parsimony data to tr, so that we can look it up easily later on.
+  tr->minParsimonyPerSite = BP_minParsimonyScorePerSiteArray;
+
+
   //printf("populating BP_blockScoreArray\n");
   // Populate BP_blockScoreArray, which stores the optimum homoplasy score every contiguous block of characters
-  // Todo there is stuff to do with declaring data structures and assigning memory space and stuff like that that I am super not doing at the moment.
 
 
 
