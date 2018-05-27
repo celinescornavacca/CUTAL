@@ -1,7 +1,0 @@
-#to compile
-
-make -f Makefile.gcc 
-
-#to run on an example
-
-./CUTAL -s test.txt -p 1
