@@ -710,69 +710,182 @@ static void getyspace (rawdata *rdta)
 
 
 
+
+
 // Returns a 2d int array of dimensions [d1][d2], and allocates memory for it
 static int **get2dIntArray(int d1, int d2)
   {
-    //printf("creating 2d int array... ");
-    int **arr;
-    arr  = (int **)malloc(sizeof(int *) * d1);
-    arr[0] = (int *)malloc(sizeof(int) * d2 * d1);
-    int i;  
-    for(i = 0; i < d1; i++)
-        arr[i] = (*arr + d2 * i);
-    //printf("done \n");
-   return arr;
+    // "Data array"
+    // Reserve a block of memory large enough to store d1*d2 ints
+    // Set y0 to be the start position of this block
+    // Once everything is set up, the int corresponding to arr[i][j] will live at position  y0 + (i*d2 + j*) * sizeof(int)
+    int *y0 = (int*) malloc(sizeof(int) * d1 * d2);
+    assert(y0);
+
+    // "Top level array"
+    // Reserve a block of memory large enough to store d1 int-pointers
+    // Set x0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i] will live at position x0 + i*sizeof(int*).
+    // It will point to  y0 + i*d2 *  sizeof(int),  i.e. the location of the int corresponding to arr[i][0]
+    // (It follows that arr[i][j] will return the int at y0 + i*d2*sizeof(int*) + j*sizeof(int*)
+    //   = y0 + (i*d2 + j) * sizeof(int), as required.)
+    int **x0 = (int**) malloc(sizeof(int*) * d1);
+    assert(x0);
+
+
+    // Now we have allocated memory space, we can set up our pointers.
+    // Define arr as a pointer to x0 
+    // (so that arr[0] will be the pointer living at position x0 and arr[i] will be the pointer living at position 
+    //    x0 + i*sizeof(int*)  )
+    int **arr = x0;
+
+    // Define the pointer living at arr[i] to be a pointer to y0 + i*d2*sizeof(int)
+    // (so that arr[i][j] will be the int living at position y0 + (i*d2 + j)*sizeof(int) )
+    int *y = y0;
+    int i;
+    for (i = 0; i < d1; i++)
+      {
+        arr[i] = y;
+        y += d2;
+      } 
+
+    // All the pointers are set up, so return the pointer to the start of the array.
+    return arr;
 
   }
+
+// Returns a 3d float array of dimensions [d1][d2][d3], and allocates memory for it
+static float ***get3dFloatArray(int d1, int d2, int d3)
+  {
+    // "Data array"
+    // Reserve a block of memory large enough to store d1*d2*d3 floats
+    // Set z0 to be the start position of this block
+    // Once everything is set up, the float corresponding to arr[i][j][k] will live at position  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(float)
+    float *z0 = (float*) malloc(sizeof(float) * d1 * d2 * d3);
+    assert(z0);
+
+    // "Intermediate array"
+    // Reserve a block of memory large enough to store d1*d2 float-pointers
+    // Set y0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i][j] will live at position y0 + (i*d2 + j) * sizeof(float*).
+    // It will point to z0 + (i*(d2*d3) + j*d3)  * sizeof(float),  i.e. the location of the float corresponding to arr[i][j][0]
+    // (It follows that arr[i][j][k]  will return the float at z0 + (i*(d2*d3) + j*d3)*sizeof(float) + k*sizeof(float)  
+    //   =  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(float), as required.)
+    float **y0 = (float**) malloc(sizeof(float*) * d1 * d2);
+    assert(y0);
+
+    // "Top level array"
+    // Reserve a block of memory large enough to store d1 float-pointer-pointers
+    // Set x0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i] will live at position x0 + i*sizeof(float**).
+    // It will point to  y0 + i*d2 *  sizeof(float*),  i.e. the location of the pointer corresponding to arr[i][0]
+    // (It follows that arr[i][j] will return the float-pointer at y0 + i*d2*sizeof(float*) + j*sizeof(float*)
+    //   = y0 + (i*d2 + j) * sizeof(float*), as required.)
+    float ***x0 = (float***) malloc(sizeof(float**) * d1);
+    assert(x0);
+
+
+    // Now we have allocated memory space, we can set up our pointers.
+
+    // Define arr as a pointer to x0 
+    // (so that arr[0] will be the pointer living at position x0 and arr[i] will be the pointer living at position 
+    //    x0 + i*sizeof(float**)  )
+    float ***arr = x0;
+
+    // Define the pointer living at arr[i] to be a pointer to y0 + i*d2*sizeof(float*)
+    // (so that arr[i][j] will be the pointer living at position y0 + (i*d2 + j)*sizeof(float*) )
+    float **y = y0;
+    int i;
+    for (i = 0; i < d1; i++)
+      {
+        arr[i] = y;
+        y += d2;
+      } 
+
+    float *z = z0;
+    int j;
+    // Define the pointer living at arr[i][j] to be a pointer to z0 + (i*(d2*d3) + j*d3) * sizeof(float)
+    // (so that arr[i][j][k] will be the float living at position z0 + (i*(d2*d3) + j*d3 + k) * sizeof(float) )
+    for (i = 0; i < d1; i++)
+    {
+      for (j = 0; j < d2; j++)
+        {
+           arr[i][j] = z;
+           z += d3;
+        } 
+    }
+
+    // All the pointers are set up, so return the pointer to the start of the array.
+    return arr;
+  }
+
 
 // Returns a 3d int array of dimensions [d1][d2][d3], and allocates memory for it
 static int ***get3dIntArray(int d1, int d2, int d3)
   {
-    //printf("creating 3d int array... ");
-    int b,i;
-    int ***arr;
-    arr  = (int ***)malloc(sizeof(int **) * d1);
-    arr[0] = (int **)malloc(sizeof(int *) * d2 * d1);
-    arr[0][0] = (int *)malloc(sizeof(int) * d3 * d2 * d1);
- 
-    for(b = 0; b < d1; b++)
+    // "Data array"
+    // Reserve a block of memory large enough to store d1*d2*d3 ints
+    // Set z0 to be the start position of this block
+    // Once everything is set up, the int corresponding to arr[i][j][k] will live at position  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(int)
+    int *z0 = (int*) malloc(sizeof(int) * d1 * d2 * d3);
+    assert(z0);
+
+    // "Intermediate array"
+    // Reserve a block of memory large enough to store d1*d2 int-pointers
+    // Set y0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i][j] will live at position y0 + (i*d2 + j) * sizeof(int*).
+    // It will point to z0 + (i*(d2*d3) + j*d3)  * sizeof(int),  i.e. the location of the int corresponding to arr[i][j][0]
+    // (It follows that arr[i][j][k]  will return the int at z0 + (i*(d2*d3) + j*d3)*sizeof(int) + k*sizeof(int)  
+    //   =  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(int), as required.)
+    int **y0 = (int**) malloc(sizeof(int*) * d1 * d2);
+    assert(y0);
+
+    // "Top level array"
+    // Reserve a block of memory large enough to store d1 int-pointer-pointers
+    // Set x0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i] will live at position x0 + i*sizeof(int**).
+    // It will point to  y0 + i*d2 *  sizeof(int*),  i.e. the location of the pointer corresponding to arr[i][0]
+    // (It follows that arr[i][j] will return the int-pointer at y0 + i*d2*sizeof(int*) + j*sizeof(int*)
+    //   = y0 + (i*d2 + j) * sizeof(int*), as required.)
+    int ***x0 = (int***) malloc(sizeof(int**) * d1);
+    assert(x0);
+
+
+    // Now we have allocated memory space, we can set up our pointers.
+
+    // Define arr as a pointer to x0 
+    // (so that arr[0] will be the pointer living at position x0 and arr[i] will be the pointer living at position 
+    //    x0 + i*sizeof(int**)  )
+    int ***arr = x0;
+
+    // Define the pointer living at arr[i] to be a pointer to y0 + i*d2*sizeof(int*)
+    // (so that arr[i][j] will be the pointer living at position y0 + (i*d2 + j)*sizeof(int*) )
+    int **y = y0;
+    int i;
+    for (i = 0; i < d1; i++)
       {
-        arr[b] = (*arr + d2 * b);
-        for(i = 0; i < d2; i++)
-          {
-            arr[b][i] = (**arr + d3 * i);
-          }
-      }
-    //printf("done \n");
+        arr[i] = y;
+        y += d2;
+      } 
+
+    int *z = z0;
+    int j;
+    // Define the pointer living at arr[i][j] to be a pointer to z0 + (i*(d2*d3) + j*d3) * sizeof(int)
+    // (so that arr[i][j][k] will be the int living at position z0 + (i*(d2*d3) + j*d3 + k) * sizeof(int) )
+    for (i = 0; i < d1; i++)
+    {
+      for (j = 0; j < d2; j++)
+        {
+           arr[i][j] = z;
+           z += d3;
+        } 
+    }
+
+    // All the pointers are set up, so return the pointer to the start of the array.
     return arr;
   }
 
 
-// Returns a 3d int array of dimensions [d1][d2][d3], and allocates memory for it
-static float ***get3dFloatArray(int d1, int d2, int d3)
-  {
-    //printf("creating 3d float array... ");
-    int b,i;
-    float ***arr;
-    arr  = (float ***)malloc(sizeof(float **) * d1);
-    arr[0] = (float **)malloc(sizeof(float *) * d2 * d1);
-    arr[0][0] = (float *)malloc(sizeof(float) * d3 * d2 * d1);
- 
-    for(b = 0; b < d1; b++)
-      {
-        arr[b] = (*arr + d2 * b);
-        for(i = 0; i < d2; i++)
-          {
-            arr[b][i] = (**arr + d3 * i);
-            for(int j = 0; j < d3; j++){
-            	arr[b][i][j]=FLT_MAX;	
-            }
-            
-          }
-      }
-    //printf("done \n");
-    return arr;
-  }
 
 
 
@@ -1474,8 +1587,8 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
   int BP_minParsimonyScorePerSiteArray [sites];  // BP_minParsimonyScorePerSiteArray[i] stores the theoretical minimum parsimony score of  any character on site i.  (i.e. the minimum number of states used in site i, minus 1)
 
-  int BP_blockScoreArray[sites][sites];//  = get2dIntArray(sites, sites);
-
+  //int BP_blockScoreArray[sites][sites];// 
+  int **BP_blockScoreArray = get2dIntArray(sites, sites);
 
   int impossiblyHighHomoplasyScore = numsp*sites;
 
@@ -1485,17 +1598,17 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 // where "homoplasy ratio of P" means the maximum homoplasy ratio of 
 // any block in P. A value of Float.POSITIVE_INFINITY means there is no solution 
 // for this set of values (e.g. if i > j)
-  //float ***BP_DPHomoplasyRatioLookupTable = get3dFloatArray(desiredBlockCount, sites, sites);
+   float ***BP_DPHomoplasyRatioLookupTable = get3dFloatArray(desiredBlockCount, sites, sites);
 
-   float BP_DPHomoplasyRatioLookupTable[desiredBlockCount][sites][sites];
+   //float BP_DPHomoplasyRatioLookupTable[desiredBlockCount][sites][sites];
 
 // Used to reconstruct an optimal solution.
 // BP_backtrackTable[b][i][j]  is the value i' such that an 
 // optimal block partition with b+1 blocks and last block [i,j]
 // has [i',j-1] as its second-to-last block.
-  //int ***BP_backtrackTable = get3dIntArray(desiredBlockCount, sites, sites);
+   int ***BP_backtrackTable = get3dIntArray(desiredBlockCount, sites, sites);
 
-   int BP_backtrackTable[desiredBlockCount][sites][sites];
+   //int BP_backtrackTable[desiredBlockCount][sites][sites];
 
 
 
