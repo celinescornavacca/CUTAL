@@ -1562,6 +1562,7 @@ int makeParsimonyTreeFastDNA(tree *tr, analdef *adef, int startSite, int endSite
 	*/
     //int parsScore =tr->bestParsimony;
     //printf("Parsimony score %u\n", tr->bestParsimony); 
+	Tree2StringREC(tr->tree_string, tr, tr->start->back);
 	minParsimonyScoreOverRuns = MIN(minParsimonyScoreOverRuns,tr->bestParsimony);
 	//printf("Best parsimony score %u\n", minParsimonyScoreOverRuns); 
       }

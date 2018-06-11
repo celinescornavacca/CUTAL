@@ -66,7 +66,8 @@ char run_id[128] = "",
   tree_file[1024]="",   
   resultFileName[1024] = "",    
   infoFileName[1024] = "", 
-  randomFileName[1024] = "";
+  randomFileName[1024] = "",
+  partitionInfoFileName[1024] = ""; 
 
 
 static boolean whitechar (int ch);
@@ -560,7 +561,8 @@ extern FILE *myfopen(const char *path, const char *mode)
 
 void printBothOpen(const char* format, ... )
 {
-  FILE *f = myfopen(infoFileName, "ab");
+  //FILE *f = myfopen(infoFileName, "ab");
+  FILE *f = myfopen(partitionInfoFileName, "ab");
 
   va_list args;
   va_start(args, format);
@@ -886,6 +888,71 @@ static int ***get3dIntArray(int d1, int d2, int d3)
   }
 
 
+
+// Returns a 3d char array of dimensions [d1][d2][d3], (i.e; a 2D array of length-d3 strings) and allocates memory for it
+static char ***get3dCharArray(int d1, int d2, int d3)
+  {
+    // "Data array"
+    // Reserve a block of memory large enough to store d1*d2*d3 chars
+    // Set z0 to be the start position of this block
+    // Once everything is set up, the char corresponding to arr[i][j][k] will live at position  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(char)
+    char *z0 = (char*) malloc(sizeof(char) * d1 * d2 * d3);
+    assert(z0);
+
+    // "Intermediate array"
+    // Reserve a block of memory large enough to store d1*d2 char-pointers
+    // Set y0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i][j] will live at position y0 + (i*d2 + j) * sizeof(char*).
+    // It will point to z0 + (i*(d2*d3) + j*d3)  * sizeof(int),  i.e. the location of the char corresponding to arr[i][j][0]
+    // (It follows that arr[i][j][k]  will return the int at z0 + (i*(d2*d3) + j*d3)*sizeof(char) + k*sizeof(char)  
+    //   =  z0 + (i*(d2*d3) + j*d3 + k) * sizeof(int), as required.)
+    char **y0 = (char**) malloc(sizeof(char*) * d1 * d2);
+    assert(y0);
+
+    // "Top level array"
+    // Reserve a block of memory large enough to store d1 char-pointer-pointers
+    // Set x0 to be the start position of this block
+    // Once everything is set up, the pointer corresponding to arr[i] will live at position x0 + i*sizeof(char**).
+    // It will point to  y0 + i*d2 *  sizeof(char*),  i.e. the location of the pointer corresponding to arr[i][0]
+    // (It follows that arr[i][j] will return the char-pointer at y0 + i*d2*sizeof(char*) + j*sizeof(char*)
+    //   = y0 + (i*d2 + j) * sizeof(char*), as required.)
+    char ***x0 = (char***) malloc(sizeof(char**) * d1);
+    assert(x0);
+
+
+    // Now we have allocated memory space, we can set up our pointers.
+
+    // Define arr as a pointer to x0 
+    // (so that arr[0] will be the pointer living at position x0 and arr[i] will be the pointer living at position 
+    //    x0 + i*sizeof(char**)  )
+    char ***arr = x0;
+
+    // Define the pointer living at arr[i] to be a pointer to y0 + i*d2*sizeof(char*)
+    // (so that arr[i][j] will be the pointer living at position y0 + (i*d2 + j)*sizeof(char*) )
+    char **y = y0;
+    int i;
+    for (i = 0; i < d1; i++)
+      {
+        arr[i] = y;
+        y += d2;
+      } 
+
+    char *z = z0;
+    int j;
+    // Define the pointer living at arr[i][j] to be a pointer to z0 + (i*(d2*d3) + j*d3) * sizeof(char)
+    // (so that arr[i][j][k] will be the char living at position z0 + (i*(d2*d3) + j*d3 + k) * sizeof(char) )
+    for (i = 0; i < d1; i++)
+    {
+      for (j = 0; j < d2; j++)
+        {
+           arr[i][j] = z;
+           z += d3;
+        } 
+    }
+
+    // All the pointers are set up, so return the pointer to the start of the array.
+    return arr;
+  }
 
 
 
@@ -1399,11 +1466,12 @@ static void get_args(int argc, char *argv[], analdef *adef)
 
   run_id[0] = 0; 
   seq_file[0] = 0;
+  strcpy(partitionInfoFileName,        "output.");
   
   adef->parsimonySeed=1;
   adef->numberOfBlocks=2;
   
-  while(!bad_opt && ((c = mygetopt(argc,argv,"p:n:s:t:N:b:", &optind, &optarg))!=-1))
+  while(!bad_opt && ((c = mygetopt(argc,argv,"p:n:s:o:t:N:b:", &optind, &optarg))!=-1))
     {      
       switch(c)
 	{     
@@ -1424,6 +1492,9 @@ static void get_args(int argc, char *argv[], analdef *adef)
 	  break;  
 	case 's':		  
 	  strcpy(seq_file, optarg);      
+	  break;
+	case 'o':		  
+	  strcpy(partitionInfoFileName, optarg);      
 	  break;	
 	case 'p':
 	  sscanf(optarg,"%ld", &(adef->parsimonySeed));	
@@ -1455,6 +1526,7 @@ static void makeFileNames(void)
 { 
   strcpy(resultFileName,       "RAxML_parsimonyTree.");  
   strcpy(infoFileName,         "RAxML_info.");
+  //strcpy(infoFileName,         userInputString);
    
   strcat(resultFileName,       run_id); 
   strcat(infoFileName,         run_id);
@@ -1582,13 +1654,16 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
   int desiredBlockCount = adef->numberOfBlocks;
 
 
-  // BP_blockScoreArray[i][j]  stores the optimum homoplasy score of the block on characters i to j (inclusive)
   //int **BP_blockScoreArray  = get2dIntArray(sites, sites);
 
   int BP_minParsimonyScorePerSiteArray [sites];  // BP_minParsimonyScorePerSiteArray[i] stores the theoretical minimum parsimony score of  any character on site i.  (i.e. the minimum number of states used in site i, minus 1)
 
-  //int BP_blockScoreArray[sites][sites];// 
+  // BP_blockScoreArray[i][j]  stores the optimum homoplasy score of the block on characters i to j (inclusive)
   int **BP_blockScoreArray = get2dIntArray(sites, sites);
+
+
+  // BP_blockTreeStringArray[i][j] is the newick string corresponding to an optimum tree for the block on characters i to j (inclusive)
+  char ***BP_blockTreeStringArray = get3dCharArray(sites, sites, tr->treeStringLength);
 
   int impossiblyHighHomoplasyScore = numsp*sites;
 
@@ -1625,6 +1700,7 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
   //printf("populating BP_blockScoreArray\n");
   // Populate BP_blockScoreArray, which stores the optimum homoplasy score every contiguous block of characters
+  // Also populate BP_blockTreeStringArray, which stores an optimum treee for every contiguous block of characters
 
 
 
@@ -1635,8 +1711,20 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
           if (i > j)
             BP_blockScoreArray[i][j] = INT_MAX;
           else
-           BP_blockScoreArray[i][j] = getOptHomoplasyOfContiguousBlock(tr, adef, i, j);
+            BP_blockScoreArray[i][j] = getOptHomoplasyOfContiguousBlock(tr, adef, i, j);
+            // Also populate BP_blockTreeStringArray with the tree we just found
 
+//            BP_blockTreeStringArray[i][j] = tr->tree_string;
+            // populate BP_blockTreeStringArray one character at a time (not 100% sure why this works and the commented-out line above does not, probably something to do with pointers)
+            for (int k = 0; k < tr->treeStringLength; k++)
+            {
+              BP_blockTreeStringArray[i][j][k] = tr->tree_string[k];
+            }
+
+
+            //printf("%s\n", BP_blockTreeStringArray[i][j]);
+            //printf("[%d --- %d]: %d for %s\n", i, j, BP_blockScoreArray[i][j], tr->tree_string);
+            // printf("[%d --- %d]: %d for %s vs %s \n", i, j, BP_blockScoreArray[i][j], BP_blockTreeStringArray[i][j],  BP_blockTreeStringArray[0][8]);
         }  
       if (debugOutput > 0)
         { 
@@ -1810,7 +1898,13 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
   // Tada! We have found the optimal block partition. Hopefully. Time to report it!
 
-  printf("Optimal block partition: %d blocks", optFinalB+1);
+
+  printBothOpen("---------------------------------\n"),
+  printBothOpen("Input file: %s | Output file: %s | Maximum number of blocks: %d | Randomization seed: %d\n", seq_file, partitionInfoFileName, adef->numberOfBlocks, adef->parsimonySeed);
+
+
+  printBothOpen("Optimal block partition: %d blocks\n", optFinalB+1);
+
 
 
   for (int h = 0; h <= optFinalB; h++)
@@ -1818,23 +1912,33 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
       int tempBlockStart = BP_optBlockStarts[h];
       int tempBlockEnd = BP_optBlockEnds[h];
-      printf("[");
-      printf("%d", tempBlockStart); 
-      printf("---");
-      printf("%d", tempBlockEnd);
-      printf("]");
-      if (h < optFinalB)
-        {
-          printf(", ");
-        } 
-      else 
-        {
-          printf("\n");
-        }
+      int blockParsimonyScore = BP_blockScoreArray[tempBlockStart][tempBlockEnd];
+      int blockHomoplasyScore = getHomoplasyRatio(tempBlockStart, tempBlockEnd, blockParsimonyScore);
+      char *blockTreeNewickString = BP_blockTreeStringArray[tempBlockStart][tempBlockEnd];
+      printBothOpen("[%d---%d] Parsimony score: %d Homoplasy Score: %d\n",  tempBlockStart, tempBlockEnd, blockParsimonyScore, blockHomoplasyScore);
+      printBothOpen("[%d---%d] Parsimony tree:\n:",  tempBlockStart, tempBlockEnd);
+      printBothOpen("%s", blockTreeNewickString);
     }
 
 
-  printf("Maximum homoplasy ratio: %f\n", BP_optHomoplasyRatio);
+  printBothOpen("Optimum block partition: %d blocks\n", optFinalB+1);
+  for (int h = 0; h <= optFinalB; h++)
+    {
+
+      int tempBlockStart = BP_optBlockStarts[h];
+      int tempBlockEnd = BP_optBlockEnds[h];
+      printBothOpen("[%d---%d]",  tempBlockStart, tempBlockEnd);
+      if (h < optFinalB)
+        {
+          printBothOpen(", ");
+        } 
+      else 
+        {
+          printBothOpen("\n");
+        }
+    }
+
+  printBothOpen("Maximum homoplasy ratio: %f\n", BP_optHomoplasyRatio);
   
 
   // TODO: report back more details, like the homoplasy score / optimal tree for each block?
@@ -1881,7 +1985,6 @@ int main (int argc, char *argv[])
   //printBothOpen("Released under GNU GPL in %s by Alexandros Stamatakis\n\n", programDate);
   //printBothOpen("Alignment has %d sites and %d taxa\n\n", tr->cdta->endsite, tr->mxtips);
   //printBothOpen("%d randomized stepwise addition order parsimony trees with a couple of SPR moves will be computed\n\n", adef->numberOfTrees);
-
 
 
 
