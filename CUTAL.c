@@ -1912,10 +1912,10 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
       int tempBlockStart = BP_optBlockStarts[h];
       int tempBlockEnd = BP_optBlockEnds[h];
-      int blockParsimonyScore = BP_blockScoreArray[tempBlockStart][tempBlockEnd];
-      int blockHomoplasyScore = getHomoplasyRatio(tempBlockStart, tempBlockEnd, blockParsimonyScore);
+      int blockHomoplasyScore = BP_blockScoreArray[tempBlockStart][tempBlockEnd];
+      float blockHomoplasyRatio = getHomoplasyRatio(tempBlockStart, tempBlockEnd, blockHomoplasyScore);
       char *blockTreeNewickString = BP_blockTreeStringArray[tempBlockStart][tempBlockEnd];
-      printBothOpen("[%d---%d] Parsimony score: %d Homoplasy Score: %d\n",  tempBlockStart, tempBlockEnd, blockParsimonyScore, blockHomoplasyScore);
+      printBothOpen("[%d---%d] Homoplasy score: %d Homoplasy Ratio: %f\n",  tempBlockStart, tempBlockEnd, blockHomoplasyScore, blockHomoplasyRatio);
       printBothOpen("[%d---%d] Parsimony tree:\n:",  tempBlockStart, tempBlockEnd);
       printBothOpen("%s", blockTreeNewickString);
     }
