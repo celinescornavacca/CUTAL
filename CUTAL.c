@@ -67,7 +67,8 @@ char run_id[128] = "",
   resultFileName[1024] = "",    
   infoFileName[1024] = "", 
   randomFileName[1024] = "",
-  partitionInfoFileName[1024] = ""; 
+  partitionInfoFileName[1024] = "",
+  trueBlockPartitionString[1024] = ""; 
 
 
 static boolean whitechar (int ch);
@@ -1470,8 +1471,10 @@ static void get_args(int argc, char *argv[], analdef *adef)
   
   adef->parsimonySeed=1;
   adef->numberOfBlocks=2;
+  adef->maxHomoplasyRatio= FLT_MAX;
+  adef->verbose= 1;
   
-  while(!bad_opt && ((c = mygetopt(argc,argv,"p:n:s:o:t:N:b:", &optind, &optarg))!=-1))
+  while(!bad_opt && ((c = mygetopt(argc,argv,"p:n:s:o:t:N:b:B:r:v:", &optind, &optarg))!=-1))
     {      
       switch(c)
 	{     
@@ -1507,7 +1510,16 @@ static void get_args(int argc, char *argv[], analdef *adef)
 	case 'n':
 	  strcpy(run_id, optarg);
 	  analyzeRunId(run_id);
-	  break;          
+	  break;    
+	case 'B':
+	  strcpy(trueBlockPartitionString, optarg);
+	  break;        
+	case 'r':
+	  sscanf(optarg,"%f", &(adef->maxHomoplasyRatio));	// desired maximum homoplasy ratio - we're interested in shortest block partition that achieves this ratio
+	  break;         
+	case 'v':
+	  sscanf(optarg,"%d", &(adef->verbose));	// desired verbosity - 0: just return summary information. 1: return block partition (and max homoplasy ratio) for each possible block count. 2: return homoplasy ratio and parsimonious tree for each block in each partition. (set to 1 by default)
+	  break;         
 	default:
 	  assert(0);
 	}
@@ -1596,7 +1608,7 @@ unsigned int precomputed16_bitcount (unsigned int n)
 
 
 
-
+ /************************/
 
 static float getHomoplasyRatio(int i, int j, int homoplasyValue) 
 {
@@ -1605,9 +1617,89 @@ static float getHomoplasyRatio(int i, int j, int homoplasyValue)
 
 }
 
+// Given a number of blocks and two arrays describing the start and end points of each block, 
+// and a lookup table of homoplasy scores for each possible block,
+// returns the maximum homoplasy ratio of the given set of blocks
+static float getMaxHomoplasyRatioFromPartition(int blockCount, int* blockStartPoints, int* blockEndPoints, int** blockScoreArray)
+  {
+    // okay, first step: look up how i did similarish stuff back when i was doing the dyamic programming.
+    // actually no. First, set up the bits you know  about
+    float maxRatioSoFar = 0;
+    float tempHomoplasyRatio;
+    int tempBlockStart;
+    int tempBlockEnd;
+    int tempHompolasyScore;
+    int b;
+    for (b = 0; b < blockCount; b++)
+      {      
+        tempBlockStart = blockStartPoints[b];
+        tempBlockEnd = blockEndPoints[b];
+
+        tempHompolasyScore = blockScoreArray[tempBlockStart][tempBlockEnd];
+        tempHomoplasyRatio = getHomoplasyRatio(tempBlockStart,tempBlockEnd,tempHompolasyScore);
+
+        if (tempHomoplasyRatio > maxRatioSoFar)
+          {
+            maxRatioSoFar = tempHomoplasyRatio;
+          }
+      }
+    return maxRatioSoFar;
+
+  }
+
+// Converts a block count and two arrays into a string describing a block partition
+static char* getBlockPartitionString(int blockCount, int* blockStartPoints, int* blockEndPoints)
+{
+
+  char* outstr = (char*) malloc(sizeof(char) * 1000);
+  strcpy(outstr, "");
+  char tempstr[1000];
+  int tempBlockStart;
+  int tempBlockEnd;
+  for (int h = 0; h < blockCount; h++)
+    {   
+
+      tempBlockStart = blockStartPoints[h];
+      tempBlockEnd = blockEndPoints[h];
+      sprintf(tempstr, "[%d---%d]", tempBlockStart, tempBlockEnd); // make formatted string discribing block h
+      strcat(outstr, tempstr);  // append block to output string
+      if (h < blockCount - 1)
+        {
+          strcat(outstr, ", "); // append a comma if there are more blocks to come
+        } 
+      //else 
+      //  {
+      //    strcat(outstr, "\n"); // otherwise, end line
+      //  }
+    }
+  return outstr;
+}
 
 
-
+// Returns the average internal boundary error for a block partition with blockCount blocks and endpoints defined by testBlockStarts, testBlockEnds, when compared to the block partition defined by truePartitionStartPoints and truePartitionEndPoints
+// For two block partitions [x_1 -- y_1],...,[x_b---y_b] and [w_1---z_1],...,[w_b---z_b],
+// And assuming that x_{i+1} = y_i +1, w_{i+1} = z_i + 1 for all  1 <= i < b,
+// the average internal boundary error is defined as 
+//   ( abs(y_1-z_1) + abs(y_2-z_2) + ... + abs(y_{b-1}-z_{b-1}) ) / (b-1)
+// ERMMM
+// So hey I guess it turned out we didn't need the startpoint arrays here after all but whatever.
+// TODO go back and put in a proper check that the arrays are well-formated, later.
+static float averageInternalBoundaryError(int blockCount, int* truePartitionStartPoints, int* truePartitionEndPoints, int* testBlockStarts, int* testBlockEnds)
+{
+  int totalBoundaryError = 0;
+  int i;
+  for (i = 0; i < blockCount - 1; i++)  // We don't test the endpoints for the final block, as these are assumed to both be taxaCount-1
+    {
+      int localBoundaryError = abs(truePartitionEndPoints[i] - testBlockEnds[i]);
+      // printf("local error: %d\n", localBoundaryError);
+      totalBoundaryError += localBoundaryError;
+      // printf("total error so far: %d\n", totalBoundaryError);
+    }
+  // printf("Total error %d / internal boundary count %d\n", totalBoundaryError, blockCount -1);
+  float averageError = (float) totalBoundaryError / (blockCount -1);
+  // printf("Average error %f\n", averageError);
+  return averageError;
+}
 
 
 static int getOptHomoplasyOfContiguousBlock(tree *tr, analdef *adef, int startCharacter, int endCharacter)
@@ -1643,16 +1735,172 @@ static int getOptHomoplasyOfContiguousBlock(tree *tr, analdef *adef, int startCh
 
 
 
+// Given a string trueBlockPartitionString of the form [0---x],[x+1---y],.... ,[w+1---z] representing a block partition
+// Sets truePartitionBlockCount to be the number of blocks in the partition,
+// And sets truePartitionStartPoints (respectively, truePartitionEndPoint) to be an array of length truePartitionBlockCount containing 
+// the start points (respectively, end points) of all blocks in the partition.
+// TODO: spell out the format required for trueBlockPartitionString: no spaces, blocks separated by commas, blocks have the form [x---y] where x and y are integers. TODO other constraints?
+static void getTrueBlockPartitionData( char* trueBlockPartitionString, int *truePartitionBlockCount, int **truePartitionStartPoints, int **truePartitionEndPoints, int sites)
+{
+  // First calculate number of blocks in true partition
+
+  // Go through thr string and see how many appearances of ',' there are. For each ',' we have an additional block
+  int tempBlockCount = 1;
+  int i = 0;
+  while (trueBlockPartitionString[i] != '\0')
+    {
+      if (trueBlockPartitionString[i] == ',')
+        {
+          tempBlockCount++;
+        }
+      i++;
+    }
+  *truePartitionBlockCount = tempBlockCount;
+
+  // make tempStartArray and tempEndArray be arrays of length truePartitionBlockCount
+  int* tempStartArray = (int*) malloc(sizeof(int) * *truePartitionBlockCount);
+  int* tempEndArray = (int*) malloc(sizeof(int) * *truePartitionBlockCount);
+
+  // now set truePartitionStartPoints and truePartitionEndPoints to be the two arrays we just constructed.
+  free(*truePartitionStartPoints);
+  *truePartitionStartPoints = tempStartArray;
+  free(*truePartitionEndPoints);
+  *truePartitionEndPoints = tempEndArray;
+
+  // populate tempStartArray and tempEndArray with integers from the input string
+
+  int nextStartInt = -1;
+  int nextEndInt = -1;
+  char* currentString = trueBlockPartitionString;
+  char* nextString = trueBlockPartitionString;
+
+  int b = 0;
+
+  // populate the first item of each array
+  if (sscanf(currentString, "[%d%s", &nextStartInt, nextString) > 0)
+    {
+      tempStartArray[b] = nextStartInt;
+      currentString = nextString;
+      if (sscanf(currentString, "---%d]%s", &nextEndInt, nextString) > 0)
+        {
+          tempEndArray[b] = nextEndInt;
+          currentString = nextString;
+        }
+      else
+        {
+          nextEndInt = -1;
+          tempEndArray[b] = nextEndInt;
+          currentString = "";
+          printf("Error1: badly formatted block input (blocks must be of the form [i---j] for integers i <= j, separated by ',' without spaces)\n");
+          exit(-1);
+        }
+      b++;
+    }
+  // populate the subsequent items of each array
+  while (sscanf(currentString, ",[%d%s)", &nextStartInt, nextString) > 0)
+    {
+      tempStartArray[b] = nextStartInt;
+      currentString = nextString;
+      if (sscanf(currentString, "---%d]%s", &nextEndInt, nextString) > 0)
+        {
+          tempEndArray[b] = nextEndInt;
+          currentString = nextString;
+        }
+      else
+        {
+          nextEndInt = -1;
+          tempEndArray[b] = nextEndInt;
+          currentString = "";
+          printf("Error2: badly formatted block input (blocks must be of the form [i---j] for integers i <= j, separated by ',' without spaces)\n");
+          exit(-1);
+        }
+      b++;
+    }
+  //// commenting out - intended to throw an error if there is extra garbage after a well-formatted block partition string. 
+  //// Was not working, threw errors for correctly formatted instances.
+  //// Currently no test for this type of formatting error
+  //if(currentString[0] != '\0')
+  //  {
+  //    printf("Error3: badly formatted block input %s (blocks must be of the form [i---j] for integers i <= j, separated by ',' without spaces)\n", currentString);
+  //    exit(-1);
+  //  }
+
+
+  // check that the block partition is well formatted
+  if (tempStartArray[0] != 0)
+    {
+      printf("Error4: badly formatted block input (first block must begin with 0)\n");
+      exit(-1);
+    }
+  // check that the block partition is well formatted
+  if (tempEndArray[*truePartitionBlockCount -1] != sites -1)
+    {
+      printf("Error5: badly formatted block input (last block [%d---%d] must end with %d (sequence length -1))\n", tempStartArray[*truePartitionBlockCount -1], tempEndArray[*truePartitionBlockCount -1], sites-1);
+      exit(-1);
+    }
+  // TODO:check that last endpoint is equal to number of species - 1
+  //if (tempEndArray[*truePartitionBlockCount -1] )
+
+  for (b = 0; b < *truePartitionBlockCount; b++)
+    {
+       if (tempStartArray[b] > tempEndArray[b])
+         {
+           printf("Error6: badly formatted block input [%d---%d](block start cannot be greater than block end)\n", tempStartArray[b], tempEndArray[b]);
+           exit(-1);
+         }
+    }
+  for (b = 0; b < *truePartitionBlockCount -1; b++)
+    {
+       if (tempStartArray[b+1] != tempEndArray[b] + 1)
+         {
+           printf("Error7: badly formatted block input [%d---%d],[%d---%d] (block start must equal previous block end + 1)\n", tempStartArray[b], tempEndArray[b], tempStartArray[b+1], tempEndArray[b+1]);
+           exit(-1);
+         }
+    }
+
+
+  //printf ("ANOTHER TEST [%d --- %d]\n", nextStartInt, nextEndInt);
+//  tempStartArray[0] = nextStartInt;
+//  tempEndArray[0] = nextEndInt;
+  //printf ("ANOTHER TEST [%d --- %d]\n", tempStartArray[0], tempEndArray[0]);
+  //printf ("ANOTHER TEST [%d --- %d]\n", *truePartitionStartPoints[0], *truePartitionEndPoints[0]);
+
+}
+
 static void getOptBlockPartition(tree *tr, analdef *adef) 
 {
-
 
   int debugOutput = 0;
 
   int numsp = tr->rdta->numsp;  // number of species
   int sites = tr->rdta->sites;  // number of sites
   int desiredBlockCount = adef->numberOfBlocks;
+  float desiredHomoplasyRatio = adef->maxHomoplasyRatio;
+  int verbosity = adef->verbose;// controls how much information is printed to terminal. 
+                                // 0: Just return summary info
+                                // 1: Also return opt block partition + homoplasy ratio for each possible block count
+                                // 2: Also return homoplasy ratio + parsimonious tree for each block in each partition
 
+  int truePartitionBlockCount;
+  int* truePartitionStartPoints;
+  int* truePartitionEndPoints; 
+
+  // parse and store data on the True Block Partition
+  // NOTE / TODO: putting this construction here was the simplest thing to do, but not necessarily the most hygenic.
+  // We might want to move this into get_args or similar.
+  // Maybe we want to store the information in adef ?
+  if (trueBlockPartitionString[0] != '\0')
+    {
+      char tempBlockPartitionString[1024] = ""; 
+      strcpy(tempBlockPartitionString,trueBlockPartitionString);
+      getTrueBlockPartitionData(tempBlockPartitionString, &truePartitionBlockCount, &truePartitionStartPoints, &truePartitionEndPoints, sites);
+    }
+
+
+  
+  printBothOpen("---------------------------------\n"),
+  printBothOpen("Input file: %s | Output file: %s | Maximum number of blocks: %d | Randomization seed: %d\n", seq_file, partitionInfoFileName, adef->numberOfBlocks, adef->parsimonySeed);  
+  printBothOpen("---------------------------------\n");
 
   //int **BP_blockScoreArray  = get2dIntArray(sites, sites);
 
@@ -1702,8 +1950,6 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
   // Populate BP_blockScoreArray, which stores the optimum homoplasy score every contiguous block of characters
   // Also populate BP_blockTreeStringArray, which stores an optimum treee for every contiguous block of characters
 
-
-
   for (int i = 0; i < sites; i++)   
     {
       for (int j = 0; j < sites; j++) 
@@ -1720,11 +1966,6 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
             {
               BP_blockTreeStringArray[i][j][k] = tr->tree_string[k];
             }
-
-
-            //printf("%s\n", BP_blockTreeStringArray[i][j]);
-            //printf("[%d --- %d]: %d for %s\n", i, j, BP_blockScoreArray[i][j], tr->tree_string);
-            // printf("[%d --- %d]: %d for %s vs %s \n", i, j, BP_blockScoreArray[i][j], BP_blockTreeStringArray[i][j],  BP_blockTreeStringArray[0][8]);
         }  
       if (debugOutput > 0)
         { 
@@ -1823,125 +2064,253 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
   // Okay, now we have the DP homoplasy lookup table and also the backtrack table. it remains to just find the best block partition using these tabes!
 
-
-  printf("determining optimal block partition.\n");
+  if (debugOutput > 0)
+    { 
+      printf("Determining optimal block partition.\n");
+    }
+  
 
   // Given DPHomoplasyRatioLookupTable, it remains to find the value corresponding a block partition of the full set of characters (i.e. j = characterCount-1) that has minimum homoplasy ratio.
-  float currentOptimum = FLT_MAX;
   // Find the minimum value over all entries DPHomoplasyRatioLookupTable[b][i][j] with j = characterCount-1.
   // (Note that b may be smaller than desiredBlockCount-1, if splitting into fewer than desiredBlockcount blocks 
   // actually gives better homoplasy ratio.
-  int optFinalI = -1;
-  int optFinalB = -1;
+
+  // optFinalIForBlockCount[b] will return the value i for which BP_DPHomoplasyRatioLookupTable[b][i][sites-1] is minimal,
+  // i.e. the start point of the end block in an optimal partition with b blocks.
+  int optFinalIForBlockCount [desiredBlockCount]; 
+  float optimumRatioForBlockCount [desiredBlockCount]; 
+
+
+  //int optFinalI = -1;
   for(int b = 0; b < desiredBlockCount; b++)
     {
+      optimumRatioForBlockCount[b] = FLT_MAX;
+      optFinalIForBlockCount[b] = -1;
       for(int i = 0; i < sites; i++)
         {
           float tempVal = BP_DPHomoplasyRatioLookupTable[b][i][sites-1];
-          if (tempVal < currentOptimum )
+          if (tempVal < optimumRatioForBlockCount[b] )
             {
-              currentOptimum = tempVal;
-              optFinalI = i;
-              optFinalB = b;
+              optimumRatioForBlockCount[b] = tempVal;
+              optFinalIForBlockCount[b] = i;
             }
         }
     }
   // Store the minimum value found
+  // Also store the minimum block number for which ratio at most desiredHomoplasyRatio was achieved (if this was requested), and the achieved ratio
+  int optFinalB = -1;
+  float currentOptimum = FLT_MAX;
+  int minimumBForRequestedRatio = -1;
+  float ratioForMinimumBForRequestedRatio = FLT_MAX;
+  float ratioForCorrectBlockCount = FLT_MAX;
+  float internalBoundaryError = FLT_MAX;
+
+
+  char* optimumBlockPartitionString = (char*) malloc(sizeof(char) * 1000);
+  char* fewestBlockForRatioPartitionString = (char*) malloc(sizeof(char) * 1000);
+  char* blockPartitionOfCorrectSizeString = (char*) malloc(sizeof(char) * 1000);
+
+
+  for(int b = 0; b < desiredBlockCount; b++)
+    {
+      if (optimumRatioForBlockCount[b] < currentOptimum)
+      {
+        currentOptimum = optimumRatioForBlockCount[b];
+        optFinalB = b;
+      }
+      // if this is the first block count for which we achieve desired ratio, record the block count and acheived ratio
+      if (optimumRatioForBlockCount[b] <= desiredHomoplasyRatio && minimumBForRequestedRatio == -1)
+      {
+        minimumBForRequestedRatio = b;
+        ratioForMinimumBForRequestedRatio = optimumRatioForBlockCount[b];
+      }
+    }
+
+
   float BP_optHomoplasyRatio = currentOptimum;
   int optBlockCount = optFinalB + 1;
-  // Now use backtracking to reconstruct the details of an optimal solution
-
-
-
-  int BP_optBlockStarts[optBlockCount]; // List of the first elements of each block in an optimal block partition
-  int BP_optBlockEnds[optBlockCount];	// List of the last elements of each block in an optimal block partition
-  //int BP_optTrees[optFinalB + 1];	// List of (the indices of?????) optimal trees for each block in an optimal block partition
-
-  // The first block we store information on is actually the last block, which we know ends with the last character.
-  int currentBlockStart = optFinalI;
-  int currentBlockEnd = sites - 1;
-  //int currentBlockCount = optFinalB;
-
-
-  // TEMP COMMENTING OUT TO GET AROUND ANOTHER BUG
- 
-  // Work backwards, finding the previous block and recording its details, until we reach the first block
-  for (int b = optBlockCount-1; b >= 0; b--)  
-    {
-     // printf("heeey%d\n", b);
-      if (b >0)
-        {
-          assert (currentBlockStart <= currentBlockEnd);
-          assert (currentBlockStart >= 0);
-          assert (currentBlockEnd >= 0);
-        }
-      // append the details of the current block to their respective lists.
-      BP_optBlockStarts[b] = currentBlockStart;
-      BP_optBlockEnds[b] = currentBlockEnd;
-      //printf("hooo %d\n", currentBlockStart);
-      //printf("hrrrrrro %d\n", currentBlockEnd);
-      //BP_optTrees.add(BP_optTreePerBlock[currentBlockStart][currentBlockEnd]);
-
-      int previousBlockStart = BP_backtrackTable[b][currentBlockStart][currentBlockEnd];
-      int previousBlockEnd = currentBlockStart - 1;
-      //int previousBlockCount= currentBlockCount - 1;
-      //printf("haaaaa\n");
-
-
-      // previous block becomes the new current block
-      currentBlockStart = previousBlockStart;
-      currentBlockEnd = previousBlockEnd;
-      //currentBlockCount = previousBlockCount;
-
-    }
 
 
   // Tada! We have found the optimal block partition. Hopefully. Time to report it!
 
 
-  printBothOpen("---------------------------------\n"),
-  printBothOpen("Input file: %s | Output file: %s | Maximum number of blocks: %d | Randomization seed: %d\n", seq_file, partitionInfoFileName, adef->numberOfBlocks, adef->parsimonySeed);
 
 
-  printBothOpen("Optimal block partition: %d blocks\n", optFinalB+1);
-
-
-
-  for (int h = 0; h <= optFinalB; h++)
+  // Exciting new feature: report back an optimal block partition for EACH block count in the desired range, not just the optimum
+  for (int tempB = 0; tempB < desiredBlockCount; tempB++)
     {
+      // Now use backtracking to reconstruct the details of an optimal solution
+  
+      int BP_optBlockStarts[tempB]; // List of the first elements of each block in an optimal block partition
+      int BP_optBlockEnds[tempB];	// List of the last elements of each block in an optimal block partition
+      //int BP_optTrees[optFinalB + 1];	// List of (the indices of?????) optimal trees for each block in an optimal block partition
+  
+      // The first block we store information on is actually the last block, which we know ends with the last character.
+      int currentBlockStart = optFinalIForBlockCount[tempB];
+      int currentBlockEnd = sites - 1;
+      //int currentBlockCount = optFinalB;
 
-      int tempBlockStart = BP_optBlockStarts[h];
-      int tempBlockEnd = BP_optBlockEnds[h];
-      int blockHomoplasyScore = BP_blockScoreArray[tempBlockStart][tempBlockEnd];
-      float blockHomoplasyRatio = getHomoplasyRatio(tempBlockStart, tempBlockEnd, blockHomoplasyScore);
-      char *blockTreeNewickString = BP_blockTreeStringArray[tempBlockStart][tempBlockEnd];
-      printBothOpen("[%d---%d] Homoplasy score: %d Homoplasy Ratio: %f\n",  tempBlockStart, tempBlockEnd, blockHomoplasyScore, blockHomoplasyRatio);
-      printBothOpen("[%d---%d] Parsimony tree:\n:",  tempBlockStart, tempBlockEnd);
-      printBothOpen("%s", blockTreeNewickString);
-    }
 
-
-  printBothOpen("Optimum block partition: %d blocks\n", optFinalB+1);
-  for (int h = 0; h <= optFinalB; h++)
-    {
-
-      int tempBlockStart = BP_optBlockStarts[h];
-      int tempBlockEnd = BP_optBlockEnds[h];
-      printBothOpen("[%d---%d]",  tempBlockStart, tempBlockEnd);
-      if (h < optFinalB)
+ 
+      // Work backwards, finding the previous block and recording its details, until we reach the first block
+      for (int b = tempB; b >= 0; b--)  
         {
-          printBothOpen(", ");
-        } 
-      else 
+         // printf("heeey%d\n", b);
+          if (b >0)
+            {
+              assert (currentBlockStart <= currentBlockEnd);
+              assert (currentBlockStart >= 0);
+              assert (currentBlockEnd >= 0);
+            }
+          // append the details of the current block to their respective lists.
+          BP_optBlockStarts[b] = currentBlockStart;
+          BP_optBlockEnds[b] = currentBlockEnd;
+          //printf("hooo %d\n", currentBlockStart);
+          //printf("hrrrrrro %d\n", currentBlockEnd);
+          //BP_optTrees.add(BP_optTreePerBlock[currentBlockStart][currentBlockEnd]);
+  
+          int previousBlockStart = BP_backtrackTable[b][currentBlockStart][currentBlockEnd];
+          int previousBlockEnd = currentBlockStart - 1;
+          //int previousBlockCount= currentBlockCount - 1;
+          //printf("haaaaa\n");
+
+
+          // previous block becomes the new current block
+          currentBlockStart = previousBlockStart;
+          currentBlockEnd = previousBlockEnd;
+          //currentBlockCount = previousBlockCount;
+  
+        }
+
+      // Now we have the optimal block partition for this block count, we can do things with it.
+      // First, we calculate and store certain values / strings associated with block partitions of interest.
+
+      // calculate the block partition string for this partition
+      char* blockPartitionString = getBlockPartitionString(tempB + 1, BP_optBlockStarts, BP_optBlockEnds);
+      // If this block partition is the optimal one, store the block partition string (we have already stored the optimal homoplasy ratio)
+      if (tempB == optFinalB)
         {
-          printBothOpen("\n");
+          strcpy(optimumBlockPartitionString, blockPartitionString);
+        }
+      // If we were given a desired ratio and this block count is the smallest one that acheives that ratio, 
+      // store the block partition string (we have already stored the acheived homoplasy ratio)
+      if (desiredHomoplasyRatio != FLT_MAX && tempB == minimumBForRequestedRatio)
+        {
+          strcpy(fewestBlockForRatioPartitionString, blockPartitionString);
+        }
+      // If we were given a "true" block partition and this block partition has the same number of blocks,
+      // store the block partition string, the ratio acheived and the internal boundary error
+      if (tempB == truePartitionBlockCount - 1)
+        {
+          strcpy(blockPartitionOfCorrectSizeString, blockPartitionString);
+          ratioForCorrectBlockCount = optimumRatioForBlockCount[tempB];
+          internalBoundaryError = averageInternalBoundaryError(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, BP_optBlockStarts, BP_optBlockEnds);
+        }
+
+
+      // If verbosity is at least 1, report the optimum block partition for this block count.
+      if (verbosity >= 1)
+        {
+          // Introduce the block partition (and any interesting properties)
+          printBothOpen("Best %d-block partition:\n", tempB+1); 
+          if (tempB == optFinalB)
+            {
+              printBothOpen("  **MINIMUM HOMOPLASY RATIO**\n", tempB+1);
+            }
+          if (desiredHomoplasyRatio != FLT_MAX && tempB == minimumBForRequestedRatio)
+            {
+              printBothOpen("  **FEWEST BLOCKS ACHIEVING HOMOPLASY RATIO AT MOST %f**\n", desiredHomoplasyRatio);
+            }
+          if (tempB == truePartitionBlockCount - 1)
+            {
+              printBothOpen("  **SAME BLOCK COUNT AS INPUT BLOCK PARTITION**\n");
+            }
+
+         // Print the block partition
+         printBothOpen("  %s\n", blockPartitionString);
+
+         // If verbosity is at least 2, report tree for each block in the optimum partition  TODO and ratio!
+         if (verbosity >= 2)
+           {
+             int tempBlockStart;
+             int tempBlockEnd;
+             int blockHomoplasyScore;
+             float blockHomoplasyRatio;
+             char *blockTreeNewickString;
+             for (int h = 0; h <= tempB; h++)
+               {
+                 tempBlockStart = BP_optBlockStarts[h];
+                 tempBlockEnd = BP_optBlockEnds[h];
+                 blockHomoplasyScore = BP_blockScoreArray[tempBlockStart][tempBlockEnd];
+                 blockHomoplasyRatio = getHomoplasyRatio(tempBlockStart, tempBlockEnd, blockHomoplasyScore);
+                 blockTreeNewickString = BP_blockTreeStringArray[tempBlockStart][tempBlockEnd];
+                 printBothOpen("    [%d---%d] Homoplasy score: %d Homoplasy Ratio: %f\n",  tempBlockStart, tempBlockEnd, blockHomoplasyScore, blockHomoplasyRatio);
+                 printBothOpen("    [%d---%d] Parsimony tree:\n",  tempBlockStart, tempBlockEnd);
+                 printBothOpen("      %s", blockTreeNewickString);
+               }
+           }
+
+
+
+
+         // Print the max homoplasy ratio and nulber of blocks
+         printBothOpen("  Max homoplasy ratio %f, Block count %d\n", optimumRatioForBlockCount[tempB], tempB+1);
+
+          // if the  partition we're considering has the same number of blocks as the 'true' partition, then print its average internal boundary error
+          if (tempB == truePartitionBlockCount - 1)
+            {
+              printBothOpen("  **Average internal boundary error: %f**\n",  internalBoundaryError);
+            }
+
         }
     }
 
-  printBothOpen("Maximum homoplasy ratio: %f\n", BP_optHomoplasyRatio);
-  
 
-  // TODO: report back more details, like the homoplasy score / optimal tree for each block?
+ // Print a summary of the interesting stuff
+
+  printBothOpen("---------------------------------\n");
+  printBothOpen("Summary: \n");
+  printBothOpen("  Optimal homoplasy ratio: \n");
+  printBothOpen("    %s\n", optimumBlockPartitionString);
+  printBothOpen("    Max homoplasy ratio %f, Block count %d\n", currentOptimum , optFinalB+1);
+  // Report the shortest block partition acheiving desiredMaxHomoplasyRatio, if desiredMaxHomoplasyRatio was specified.
+  if (desiredHomoplasyRatio != FLT_MAX)
+    {
+      printBothOpen("  Fewest blocks achieving homoplasy ratio at most %f: \n", desiredHomoplasyRatio );
+      if (minimumBForRequestedRatio != -1)
+        {
+          printBothOpen("    %s\n", fewestBlockForRatioPartitionString);
+
+          printBothOpen("    Max homoplasy ratio %f, Block count %d\n", ratioForMinimumBForRequestedRatio , minimumBForRequestedRatio+1);
+        }
+      else
+        {
+          printBothOpen("    No solution found.\n");
+        }
+    }
+ 
+
+  // If we were given info on the "true" block partition, report back on how our partition (for same number of blocks) compares
+  
+  if (trueBlockPartitionString[0] != '\0')
+    {
+      printBothOpen("Comparision to input partition: \n");
+      printBothOpen("  Input block partition: \n");
+      printBothOpen("    %s\n", getBlockPartitionString(truePartitionBlockCount, truePartitionStartPoints,  truePartitionEndPoints));
+      float trueRatio = getMaxHomoplasyRatioFromPartition(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, BP_blockScoreArray);
+      printBothOpen("    Max homoplasy ratio %f, Block count %d\n", trueRatio, truePartitionBlockCount);
+      printBothOpen("  Optimal %d-block partition: \n", truePartitionBlockCount);
+      if (truePartitionBlockCount <= desiredBlockCount)
+        {
+          printBothOpen("    %s\n", blockPartitionOfCorrectSizeString);
+          printBothOpen("    Max homoplasy ratio %f, Block count %d\n", ratioForCorrectBlockCount ,  truePartitionBlockCount);
+          printBothOpen("    Average internal boundary error %f\n", internalBoundaryError);
+        }
+      else
+        {
+          printBothOpen("    No solution found (input block partition has more blocks than specified maximum)\n");
+        }
+    }
 
 
 }

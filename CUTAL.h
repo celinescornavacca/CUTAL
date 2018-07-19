@@ -254,6 +254,8 @@ typedef  struct {
   boolean        restart;
   int            numberOfTrees;
   int 			 numberOfBlocks;
+  float 		 maxHomoplasyRatio;
+  int 		         verbose;
 } analdef;
 
 
