@@ -250,12 +250,20 @@ typedef  struct  {
 typedef  struct {
 
 
-  long           parsimonySeed;
-  boolean        restart;
-  int            numberOfTrees;
-  int 			 numberOfBlocks;
-  float 		 maxHomoplasyRatio;
-  int 		         verbose;
+  long          parsimonySeed;
+  boolean       restart;
+  int           numberOfTrees;
+  int 			numberOfBlocks;
+  float 		maxHomoplasyRatio;
+  int	 		maxHomoplasyScore;
+  float 		totalHomoplasyRatio;
+  int	 		totalHomoplasyScore;
+  int 			verbose;
+  int 			problems;
+  char  		trueBlockPartitionString[1024];
+  int 			truePartitionBlockCount;
+  int* 			truePartitionStartPoints; 
+  int* 			truePartitionEndPoints;
 } analdef;
 
 
