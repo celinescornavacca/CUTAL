@@ -2139,7 +2139,7 @@ static void  doTotalScoreDP(tree *tr, analdef *adef, int **BP_blockScoreArray, i
 
                   // In all other cases, totalScore is based on the homoplasy score of block [i---j], 
                   // and the optimum totalScore of a partition with one fewer block on characters 0 to i-1. 
-                  else 
+                  else if (i==j)
                     {
                       //find the minimum possible homoplasy score for any b-1 (+1) block partition up to this point
                       int currentMinimum = INT_MAX;
@@ -2155,16 +2155,33 @@ static void  doTotalScoreDP(tree *tr, analdef *adef, int **BP_blockScoreArray, i
                               bestPrevI = lasti;
                             }
                         }
-                      // currentMinimum is now the optimum total homoplasy score for any block partition of 0 to i-1
-                      // using b-1 (+1) blocks
-                      int valCurrentBlock =  BP_blockScoreArray[i][j];
+                 //     // currentMinimum is now the optimum total homoplasy score for any block partition of 0 to i-1
+                 //     // using b-1 (+1) blocks
+                 //     int valCurrentBlock =  BP_blockScoreArray[i][j];
 
                       // The optimum total homoplasy score for a block partition of this type
-                      // is equal to the best possible total up to this point, plus the score of the current block
+                      // is equal to the best possible total up to this point, plus the score of the current block (which is 0 because i===j)
                       if (currentMinimum != INT_MAX)
                         {
-                          val = currentMinimum + valCurrentBlock;
+                          val = currentMinimum; // + valCurrentBlock;
                         }
+                    }
+                  else
+                    {
+                      // In this case i < j, and the optimum total score for a b-block partition ending on [i---j] 
+                      // is equal to the otpimum total score a b-block partition ending on [i---(j-1)], plus the different in homoplasy scores between [i---j] and [i---(j-1)]
+                      //printf("Marco\n");
+                      if (totalScoreDPTable[b][i][j-1] == INT_MAX)
+                        {
+                          val = INT_MAX;
+                        }
+                      else
+                        {
+                          val = totalScoreDPTable[b][i][j-1] - BP_blockScoreArray[i][j-1] + BP_blockScoreArray[i][j];
+                          // Where should we look when backtracking? The same place we'd look for a block partition ending in [i---(j-1)]
+                          bestPrevI = totalScoreBacktrackTable[b][i][j-1];
+                        }
+
                     }
                 }
 
@@ -2176,7 +2193,7 @@ static void  doTotalScoreDP(tree *tr, analdef *adef, int **BP_blockScoreArray, i
 
               if (debugOutput > 0)
                 {
-                  printf("totalScoreDPTable[%d][%d][%d]= %d   totalScoreBacktrackTable[%d][%d][%d]=%d\n",b,i,j, val,b,i,j,bestPrevI);
+                  printf("totalScoreDPTable[%d][%d][%d]= %d   totalScoreBacktrackTable[%d][%d][%d]=%d   BP_blockScoreArray[%d][%d] = %d\n",b,i,j, val,b,i,j,bestPrevI, i, j, BP_blockScoreArray[i][j]);
                 }
             } 
         }
@@ -2242,7 +2259,7 @@ static void  doTotalRatioDP(tree *tr, analdef *adef, int **BP_blockScoreArray, f
 
                 }
 
-              // Now process the case when we have more than one block
+             // Now process the case when we have more than one block
               if (b > 0 && i > 0)
                 {
                   // For i > j, no block partition is defined.
@@ -2251,11 +2268,11 @@ static void  doTotalRatioDP(tree *tr, analdef *adef, int **BP_blockScoreArray, f
                       val = FLT_MAX;	
                     } 
 
-                  // In all other cases, totalRatio is based on the homoplasy ratio of block [i---j], 
+                  // In all other cases, totalRatio is based on the homoplasy ratioof block [i---j], 
                   // and the optimum totalRatio of a partition with one fewer block on characters 0 to i-1. 
-                  else 
+                  else if (i==j)
                     {
-                      //find the minimum possible total ratio for any b-1 (+1) block partition up to this point
+                      //find the minimum possible homoplasy ratio for any b-1 (+1) block partition up to this point
                       float currentMinimum = FLT_MAX;
                       int lastj = i-1;
                       for(int lasti = 0; lasti <= lastj; lasti++)
@@ -2271,14 +2288,31 @@ static void  doTotalRatioDP(tree *tr, analdef *adef, int **BP_blockScoreArray, f
                         }
                       // currentMinimum is now the optimum total homoplasy ratio for any block partition of 0 to i-1
                       // using b-1 (+1) blocks
-                      float valCurrentBlock = getHomoplasyRatio(i,j, BP_blockScoreArray[i][j]);
 
                       // The optimum total homoplasy ratio for a block partition of this type
-                      // is equal to the best possible total up to this point, plus the ratio of the current block
+                      // is equal to the best possible total up to this point, plus the ratio of the current block (which is 0 because i===j)
                       if (currentMinimum != FLT_MAX)
                         {
-                          val = (float) currentMinimum + valCurrentBlock;
+                          val = currentMinimum; // + valCurrentBlock;
                         }
+                    }
+                  else
+                    {
+                      // In this case i < j, and the optimum total ratio for a b-block partition ending on [i---j] 
+                      // is equal to the otpimum total ratio a b-block partition ending on [i---(j-1)], plus the difference in homoplasy ratios between [i---j] and [i---(j-1)]
+                      if (totalRatioDPTable[b][i][j-1] == FLT_MAX)
+                        {
+                          val = FLT_MAX;
+                        }
+                      else
+                        {
+                          float valCurrentBlock = getHomoplasyRatio(i,j, BP_blockScoreArray[i][j]);
+                          float valSmallerBlock = getHomoplasyRatio(i,j-1, BP_blockScoreArray[i][j-1]);
+                          val = totalRatioDPTable[b][i][j-1] - valSmallerBlock + valCurrentBlock;
+                          // Where should we look when backtracking? The same place we'd look for a block partition ending in [i---(j-1)]
+                          bestPrevI = totalRatioBacktrackTable[b][i][j-1];
+                        }
+
                     }
                 }
 
@@ -2448,6 +2482,13 @@ static void getBlockPartitionViaBacktrack(int blockCount, int finalBlockStart, i
   
       int previousBlockStart = backtrackTable[b][currentBlockStart][currentBlockEnd];
       int previousBlockEnd = currentBlockStart - 1;
+      if (b >1)
+        {
+          //assert (currentBlockStart <= currentBlockEnd);
+          assert (previousBlockStart >= 0);
+          //assert (currentBlockEnd >= 0);
+        }
+
 
       // previous block becomes the new current block
       currentBlockStart = previousBlockStart;
