@@ -752,6 +752,14 @@ static int **get2dIntArray(int d1, int d2)
 
   }
 
+
+// Frees memory associated with a 2d int array arr
+static void free2dIntArray(int **arr)
+  {
+    free(arr[0]);
+    free(arr);
+  }
+
 // Returns a 3d float array of dimensions [d1][d2][d3], and allocates memory for it
 static float ***get3dFloatArray(int d1, int d2, int d3)
   {
@@ -817,6 +825,13 @@ static float ***get3dFloatArray(int d1, int d2, int d3)
     return arr;
   }
 
+// Frees memory associated with a 3d float array arr
+static void free3dFloatArray(float ***arr)
+  {
+    free(arr[0][0]);
+    free(arr[0]);
+    free(arr);
+  }
 
 // Returns a 3d int array of dimensions [d1][d2][d3], and allocates memory for it
 static int ***get3dIntArray(int d1, int d2, int d3)
@@ -881,6 +896,14 @@ static int ***get3dIntArray(int d1, int d2, int d3)
 
     // All the pointers are set up, so return the pointer to the start of the array.
     return arr;
+  }
+
+// Frees memory associated with a 3d int array arr
+static void free3dIntArray(int ***arr)
+  {
+    free(arr[0][0]);
+    free(arr[0]);
+    free(arr);
   }
 
 
@@ -951,6 +974,13 @@ static char ***get3dCharArray(int d1, int d2, int d3)
   }
 
 
+// Frees memory associated with a 3d char array arr
+static void free3dCharArray(char ***arr)
+  {
+    free(arr[0][0]);
+    free(arr[0]);
+    free(arr);
+  }
 
 
 
@@ -1614,6 +1644,7 @@ static void get_args(int argc, char *argv[], analdef *adef)
   adef->maxHomoplasyScore= INT_MAX;	
   adef->totalHomoplasyRatio= FLT_MAX;   
   adef->totalHomoplasyScore= INT_MAX;   
+  strcpy(adef->trueBlockPartitionString, "\0"); // 27.11.2018 // trying to fix an "unitialized variable" warning further down the road - MJ
   adef->verbose= 1;
   adef->problems= 15; // solve all problems by default
   
@@ -2698,6 +2729,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
               memcpy(correctCountMaxScoreStarts, optBlockStarts, sizeof(correctCountMaxScoreStarts));
               memcpy(correctCountMaxScoreEnds, optBlockEnds, sizeof(correctCountMaxScoreEnds));
             }
+
+          // Free memory   // 27.11.2018 Trying to fix memory leaks - MJ
+          free(blockPartitionString);
         }
 
 
@@ -2781,6 +2815,8 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
               memcpy(correctCountTotalScoreStarts, optBlockStarts, sizeof(correctCountTotalScoreStarts));
               memcpy(correctCountTotalScoreEnds, optBlockEnds, sizeof(correctCountTotalScoreEnds));
             }
+          // Free memory   // 27.11.2018 Trying to fix memory leaks - MJ
+          free(blockPartitionString);
         }
 
        
@@ -2865,6 +2901,8 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
               memcpy(correctCountMaxRatioStarts, optBlockStarts, sizeof(correctCountMaxRatioStarts));
               memcpy(correctCountMaxRatioEnds, optBlockEnds, sizeof(correctCountMaxRatioEnds));
             }
+          // Free memory   // 27.11.2018 Trying to fix memory leaks - MJ
+          free(blockPartitionString);
         }
 
       //
@@ -2946,6 +2984,8 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
               memcpy(correctCountTotalRatioStarts, optBlockStarts, sizeof(correctCountTotalRatioStarts));
               memcpy(correctCountTotalRatioEnds, optBlockEnds, sizeof(correctCountTotalRatioEnds));
             }
+          // Free memory   // 27.11.2018 Trying to fix memory leaks - MJ
+          free(blockPartitionString);
         }
 
 
@@ -2964,7 +3004,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
     {
       printBothOpen("  HOMOPLASY PER BLOCK: \n");
       printBothOpen("    Optimal max homoplasy score: \n");
-      printBothOpen("      %s\n", getBlockPartitionString(overallOptMaxScoreBlockCount + 1, overallOptMaxScoreStarts, overallOptMaxScoreEnds));
+      char *str = getBlockPartitionString(overallOptMaxScoreBlockCount + 1, overallOptMaxScoreStarts, overallOptMaxScoreEnds);
+      printBothOpen("      %s\n", str);
+      free(str);
       printBothOpen("      Max homoplasy score %d, Block count %d\n", overallOptMaxScore ,  overallOptMaxScoreBlockCount+1);
      // Report the shortest block partition acheiving desiredMaxHomoplasyScore, if desiredMaxHomoplasyScore was specified.
       if (desiredMaxScore != INT_MAX)
@@ -2972,7 +3014,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
           printBothOpen("    Fewest blocks achieving homoplasy score at most %d: \n", desiredMaxScore );
           if (goodMaxScoreMinBlockCount != -1)
             {
-              printBothOpen("    %s\n", getBlockPartitionString(goodMaxScoreMinBlockCount + 1, goodMaxScoreStarts, goodMaxScoreEnds));
+              char *str = getBlockPartitionString(goodMaxScoreMinBlockCount + 1, goodMaxScoreStarts, goodMaxScoreEnds);
+              printBothOpen("    %s\n", str);
+              free(str);
               int tempScore = getMaxHomoplasyScoreFromPartition(goodMaxScoreMinBlockCount+ 1, goodMaxScoreStarts, goodMaxScoreEnds, BP_blockScoreArray);
               printBothOpen("      Max homoplasy score %d, Block count %d\n", tempScore, goodMaxScoreMinBlockCount + 1);
             }
@@ -2987,7 +3031,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
     {
       printBothOpen("  TOTAL HOMOPLASY: \n");
       printBothOpen("    Optimal total homoplasy score: \n");
-      printBothOpen("      %s\n", getBlockPartitionString(overallOptTotalScoreBlockCount + 1, overallOptTotalScoreStarts, overallOptTotalScoreEnds));
+      char *str = getBlockPartitionString(overallOptTotalScoreBlockCount + 1, overallOptTotalScoreStarts, overallOptTotalScoreEnds);
+      printBothOpen("      %s\n", str);
+      free(str);
       printBothOpen("      Total homoplasy score %d, Block count %d\n", overallOptTotalScore ,  overallOptTotalScoreBlockCount+1);
      // Report the shortest block partition acheiving desiredTotalHomoplasyScore, if desiredTotalHomoplasyScore was specified.
       if (desiredTotalScore != INT_MAX)
@@ -2995,7 +3041,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
           printBothOpen("    Fewest blocks achieving homoplasy score at most %d: \n", desiredTotalScore );
           if (goodTotalScoreMinBlockCount != -1)
             {
-              printBothOpen("    %s\n", getBlockPartitionString(goodTotalScoreMinBlockCount + 1, goodTotalScoreStarts, goodTotalScoreEnds));
+              char *str = getBlockPartitionString(goodTotalScoreMinBlockCount + 1, goodTotalScoreStarts, goodTotalScoreEnds);
+              printBothOpen("    %s\n", str);
+              free(str);
               int tempScore = getTotalHomoplasyScoreFromPartition(goodTotalScoreMinBlockCount+ 1, goodTotalScoreStarts, goodTotalScoreEnds, BP_blockScoreArray);
               printBothOpen("      Total homoplasy score %d, Block count %d\n", tempScore, goodTotalScoreMinBlockCount + 1);
             }
@@ -3011,7 +3059,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
     {
       printBothOpen("  HOMOPLASY RATE PER BLOCK: \n");
       printBothOpen("    Optimal max homoplasy ratio: \n");
-      printBothOpen("      %s\n", getBlockPartitionString(overallOptMaxRatioBlockCount + 1, overallOptMaxRatioStarts, overallOptMaxRatioEnds));
+      char *str =  getBlockPartitionString(overallOptMaxRatioBlockCount + 1, overallOptMaxRatioStarts, overallOptMaxRatioEnds);
+      printBothOpen("      %s\n", str);
+      free(str);
       printBothOpen("      Max homoplasy ratio %f, Block count %d\n", overallOptMaxRatio ,  overallOptMaxRatioBlockCount+1);
      // Report the shortest block partition acheiving desiredMaxHomoplasyRatio, if desiredMaxHomoplasyRatio was specified.
       if (desiredMaxRatio != FLT_MAX)
@@ -3019,7 +3069,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
           printBothOpen("    Fewest blocks achieving homoplasy ratio at most %f: \n", desiredMaxRatio );
           if (goodMaxRatioMinBlockCount != -1)
             {
-              printBothOpen("    %s\n", getBlockPartitionString(goodMaxRatioMinBlockCount + 1, goodMaxRatioStarts, goodMaxRatioEnds));
+              char *str = getBlockPartitionString(goodMaxRatioMinBlockCount + 1, goodMaxRatioStarts, goodMaxRatioEnds);
+              printBothOpen("    %s\n", str);
+              free(str);
               float tempRatio = getMaxHomoplasyRatioFromPartition(goodMaxRatioMinBlockCount+ 1, goodMaxRatioStarts, goodMaxRatioEnds, BP_blockScoreArray);
               printBothOpen("      Max homoplasy ratio %f, Block count %d\n", tempRatio, goodMaxRatioMinBlockCount + 1);
             }
@@ -3035,7 +3087,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
     {
       printBothOpen("  TOTAL HOMOPLASY RATE: \n");
       printBothOpen("    Optimal total homoplasy ratio: \n");
-      printBothOpen("      %s\n", getBlockPartitionString(overallOptTotalRatioBlockCount + 1, overallOptTotalRatioStarts, overallOptTotalRatioEnds));
+      char *str = getBlockPartitionString(overallOptTotalRatioBlockCount + 1, overallOptTotalRatioStarts, overallOptTotalRatioEnds);
+      printBothOpen("      %s\n", str);
+      free(str);
       printBothOpen("      Total homoplasy ratio %f, Block count %d\n", overallOptTotalRatio ,  overallOptTotalRatioBlockCount+1);
 
      // Report the shortest block partition acheiving desiredTotalHomoplasyRatio, if desiredTotalHomoplasyRatio was specified.
@@ -3044,7 +3098,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
           printBothOpen("    Fewest blocks achieving homoplasy ratio at most %f: \n", desiredTotalRatio);
           if (goodTotalRatioMinBlockCount != -1)
             {
-              printBothOpen("    %s\n", getBlockPartitionString(goodTotalRatioMinBlockCount + 1, goodTotalRatioStarts, goodTotalRatioEnds));
+              char *str = getBlockPartitionString(goodTotalRatioMinBlockCount + 1, goodTotalRatioStarts, goodTotalRatioEnds);
+              printBothOpen("    %s\n", str);
+              free(str);
               float tempRatio = getTotalHomoplasyRatioFromPartition(goodTotalRatioMinBlockCount+ 1, goodTotalRatioStarts, goodTotalRatioEnds, BP_blockScoreArray);
               printBothOpen("      Total homoplasy ratio %f, Block count %d\n", tempRatio, goodTotalRatioMinBlockCount + 1);
             }
@@ -3065,7 +3121,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
     {
       printBothOpen("Comparision to input partition: \n");
       printBothOpen("  INPUT BLOCK PARTITION: \n");
-      printBothOpen("    %s\n", getBlockPartitionString(truePartitionBlockCount, truePartitionStartPoints,  truePartitionEndPoints));
+      char *str = getBlockPartitionString(truePartitionBlockCount, truePartitionStartPoints,  truePartitionEndPoints);
+      printBothOpen("    %s\n", str);
+      free(str);
       int trueMaxScore = getMaxHomoplasyScoreFromPartition(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, BP_blockScoreArray);
       int trueTotalScore = getTotalHomoplasyScoreFromPartition(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, BP_blockScoreArray);
       float trueMaxRatio = getMaxHomoplasyRatioFromPartition(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, BP_blockScoreArray);
@@ -3077,7 +3135,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
 
           if (solveMaxScore)
             {
-              printBothOpen("    MAX SCORE: %s\n", getBlockPartitionString(truePartitionBlockCount, correctCountMaxScoreStarts,  correctCountMaxScoreEnds));
+              char *str = getBlockPartitionString(truePartitionBlockCount, correctCountMaxScoreStarts,  correctCountMaxScoreEnds);
+              printBothOpen("    MAX SCORE: %s\n", str);
+              free(str);
               int correctCountMaxScore = getMaxHomoplasyScoreFromPartition(truePartitionBlockCount, correctCountMaxScoreStarts, correctCountMaxScoreEnds, BP_blockScoreArray);
               float correctCountMaxScoreAverageBoundaryError =  averageInternalBoundaryError(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, correctCountMaxScoreStarts, correctCountMaxScoreEnds);
               printBothOpen("      Max homoplasy score %d, Average internal boundary error %f\n", correctCountMaxScore, correctCountMaxScoreAverageBoundaryError);
@@ -3085,7 +3145,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
 
           if (solveTotalScore)
             {
-              printBothOpen("    TOTAL SCORE: %s\n", getBlockPartitionString(truePartitionBlockCount, correctCountTotalScoreStarts,  correctCountTotalScoreEnds));
+              char *str = getBlockPartitionString(truePartitionBlockCount, correctCountTotalScoreStarts,  correctCountTotalScoreEnds);
+              printBothOpen("    TOTAL SCORE: %s\n", str);
+              free(str);
               int correctCountTotalScore = getTotalHomoplasyScoreFromPartition(truePartitionBlockCount, correctCountTotalScoreStarts, correctCountTotalScoreEnds, BP_blockScoreArray);
               float correctCountTotalScoreAverageBoundaryError =  averageInternalBoundaryError(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, correctCountTotalScoreStarts, correctCountTotalScoreEnds);
               printBothOpen("      Total homoplasy score %d, Average internal boundary error %f\n", correctCountTotalScore, correctCountTotalScoreAverageBoundaryError);
@@ -3093,7 +3155,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
 
           if (solveMaxRatio)
             {
-              printBothOpen("    MAX RATIO: %s\n", getBlockPartitionString(truePartitionBlockCount, correctCountMaxRatioStarts,  correctCountMaxRatioEnds));
+              char *str = getBlockPartitionString(truePartitionBlockCount, correctCountMaxRatioStarts,  correctCountMaxRatioEnds);
+              printBothOpen("    MAX RATIO: %s\n", str);
+              free(str);
               float correctCountMaxRatio = getMaxHomoplasyRatioFromPartition(truePartitionBlockCount, correctCountMaxRatioStarts, correctCountMaxRatioEnds, BP_blockScoreArray);
               float correctCountMaxRatioAverageBoundaryError =  averageInternalBoundaryError(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, correctCountMaxRatioStarts, correctCountMaxRatioEnds);
               printBothOpen("      Max homoplasy ratio %f, Average internal boundary error %f\n", correctCountMaxRatio, correctCountMaxRatioAverageBoundaryError);
@@ -3101,7 +3165,9 @@ static void constructAndReportOptimalPartitions(tree *tr, analdef *adef, int **B
 
           if (solveTotalRatio)
             {
-              printBothOpen("    TOTAL RATIO: %s\n", getBlockPartitionString(truePartitionBlockCount, correctCountTotalRatioStarts,  correctCountTotalRatioEnds));
+              char *str = getBlockPartitionString(truePartitionBlockCount, correctCountTotalRatioStarts,  correctCountTotalRatioEnds);
+              printBothOpen("    TOTAL RATIO: %s\n", str);
+              free(str);
               float correctCountTotalRatio = getTotalHomoplasyRatioFromPartition(truePartitionBlockCount, correctCountTotalRatioStarts, correctCountTotalRatioEnds, BP_blockScoreArray);
               float correctCountTotalRatioAverageBoundaryError =  averageInternalBoundaryError(truePartitionBlockCount, truePartitionStartPoints, truePartitionEndPoints, correctCountTotalRatioStarts, correctCountTotalRatioEnds);
               printBothOpen("      Total homoplasy ratio %f, Average internal boundary error %f\n", correctCountTotalRatio, correctCountTotalRatioAverageBoundaryError);
@@ -3762,6 +3828,40 @@ static void getOptBlockPartition(tree *tr, analdef *adef)
 
  // constructAndReportOptimalPartitions(tr, adef, BP_blockScoreArray, BP_blockTreeStringArray, BP_DPHomoplasyRatioLookupTable, BP_backtrackTable);
 
+
+  // Free memory before ending program   // 27.11.2018 Trying to fix memory leaks - MJ
+  free3dCharArray(BP_blockTreeStringArray);  
+  free2dIntArray(BP_blockScoreArray);
+
+  if (solveMaxScore)
+    {
+      free3dIntArray(maxScoreDPTable);
+      free3dIntArray(maxScoreBacktrackTable);
+      // maxScoreDPTable = get3dIntArray(desiredBlockCount, sites, sites);
+      // maxScoreBacktrackTable = get3dIntArray(desiredBlockCount, sites, sites);
+    }
+  if (solveTotalScore)
+    {
+      free3dIntArray(totalScoreDPTable);
+      free3dIntArray(totalScoreBacktrackTable);
+      // totalScoreDPTable = get3dIntArray(desiredBlockCount, sites, sites);
+      // totalScoreBacktrackTable = get3dIntArray(desiredBlockCount, sites, sites);
+    }
+  if (solveMaxRatio)
+    {
+      free3dFloatArray(maxRatioDPTable);
+      free3dIntArray(maxRatioBacktrackTable);
+      // maxRatioDPTable = get3dFloatArray(desiredBlockCount, sites, sites);
+      // maxRatioBacktrackTable = get3dIntArray(desiredBlockCount, sites, sites);
+    }
+  if (solveTotalRatio)
+    {
+      free3dFloatArray(totalRatioDPTable);
+      free3dIntArray(totalRatioBacktrackTable);
+      // totalRatioDPTable = get3dFloatArray(desiredBlockCount, sites, sites);
+      // totalRatioBacktrackTable = get3dIntArray(desiredBlockCount, sites, sites);
+    }
+  
 }
 
 
