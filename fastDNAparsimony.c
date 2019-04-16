@@ -969,7 +969,9 @@ int getMinParsimonyScoreForSite(tree *tr, int site)
     return minStateCover - 1;
   }
 
-static void determineUninformativeSites(tree *tr, int *informative)
+
+// TODO: made this non static so we could call it from eleswhere. This is probably bad practice right.
+void determineUninformativeSites(tree *tr, int *informative)
 {
   int 
     i;

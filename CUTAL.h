@@ -222,6 +222,7 @@ typedef  struct  {
   rawdata         *rdta;
   //cruncheddata    *cdta; //not needed anymore 
   int             *minParsimonyPerSite;  //minimum possible parsimony scores for each site (used to calculate homoplasy)
+  int             *recordOfInformativeSites;  //information about which sites are informative (1 for informative, 0 for uninformative)
 
   char **nameList;
   char *tree_string;
@@ -273,6 +274,7 @@ typedef  struct {
 extern int makeParsimonyTreeFastDNA(tree *tr, analdef *adef, int startSite, int endSite);
 extern int getMinParsimonyScoreForSite(tree *tr, int site);
 extern boolean isInformative(tree *tr, int site);
+extern void determineUninformativeSites(tree *tr, int *informative);
 extern void printBothOpen(const char* format, ... );
 extern double gettime(void);
 extern unsigned int precomputed16_bitcount (unsigned int n);
