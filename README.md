@@ -34,6 +34,10 @@ run `make -f Makefile.gcc`
 ```
 
 
+# Run CUTAL on file test.txt with up to 4 blocks allowed in the partition, and compare the returned solutions on 3 blocks with the block partition [0---3], [6---15], [17---20] 
+```sh
+./CUTAL -s test.txt -B [0---3],[6---15],[17---20] -b 4
+```
 
 ./CUTAL -s filename [Options]
 
@@ -90,9 +94,9 @@ run `make -f Makefile.gcc`
 		by CUTAL.
 		Must be a string of the form 
 			[a---b],[c---d], ... [y---z] 
-		Where a = 0, z is the number of sites/characters -1, 
+		Where a >= 0, z is at most the number of sites/characters -1, 
 		any block [a--b] satisfies a <= b, 
-		and any pair of consecutive blocks [a---b],[c---d] satisfies c = b+1.
+		and any pair of consecutive blocks [a---b],[c---d] satisfies c > b.
 		If this value is specified, CUTAL will return the max homoplasy score, total 
 		homoplasy score, max homoplasy ratio and total homoplasy ratio of the given block
 		partition; furthemore it will compare this block partition with an optimal block 
@@ -100,6 +104,9 @@ run `make -f Makefile.gcc`
 		number of blocks.
 		(The comparision includes the 'average internal boundary error' of the two 
 		partitions, a measure of how much the two partitions disagree.)
+		A warning will be given if the specified block partition contains a block
+		with no informative sites, or if there exists an informative site not contained
+		in any block.
 
 [-v int]	(Default 1) Specifies how 'verbose' CUTAL should be.
 		If set to 0, CUTAL will return the optimal solution to each problem under 
