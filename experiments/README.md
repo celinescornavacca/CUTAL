@@ -1,7 +1,7 @@
 Here is the underlying data from our experiments. Please refer to the experimental section of the paper, and its appendix, for the full
 context.
 
-============================================================================================================
+##########  2-block experiment ##########
 
 * The EXPO files, in the folder "final2block" are for the 2-block experiment. They have the following naming convention:
 
@@ -36,7 +36,7 @@ In the "Number of discarded Dawg alignments (due to at least one block being uni
 had to call Dawg in order to obtain an aliginment that does not contain any uninformative blocks (i.e. how many Dawg calls -- above the baseline
 of 20 -- were in total necessary to produce 20 replicates, none of which contained uninformative blocks). 
 
-============================================================================================================
+########## multi-block experiment ##########
 
 * The EGGSPO files, in the folder "finalMultiblock", are for the multi-block experiment.
 
@@ -47,7 +47,6 @@ EGGSPO_numberOfTaxa_branchLength_numberOfBlocks_replicateNumber_{vector of lengt
 * The excel file "finalMultiblock" summarizes the results of the multiple-block experiment. It relates to Table 2, in the same way
 the file "final2block" relates to Table 1, so please see above for the explanation of the meaning of the extra columns.
 
-===============================================================================================================
 
 The authors, September 2019.
 
